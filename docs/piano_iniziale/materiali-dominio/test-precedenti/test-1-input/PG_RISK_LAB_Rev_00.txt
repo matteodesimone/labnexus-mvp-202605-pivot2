@@ -1,0 +1,259 @@
+﻿
+ ANALISI E GESTIONE DEL RISCHIO IN LABORATORIO
+
+
+
+---------------------------------------------
+| |Rev | |Data emissione | |Motivo/Modifica |
+---------------------------------------------
+| |00 | |27/12/2019 | |Prima emissione |
+---------------------------------------------
+| | | | | | |
+---------------------------------------------
+| | | | | | |
+---------------------------------------------
+| | | | | | |
+---------------------------------------------
+| | | | | | |
+
+INDICE
+1	SCOPO	2
+2	TERMINI E DEFINIZIONI	2
+3	RIFERIMENTI NORMATIVI	3
+4	campo di applicazione	3
+4.1 	Criteri adottati dal laboratorio per la definizione del campo di applicazione…………………………………………………3
+4.2 	Attività/processi coinvolti……………………………………………………………………………………………..............4
+5	Responsabilità	7
+6	GESTIONE DEL RISCHIO	7
+6.1	Generalità	7
+6.2	Tecniche operative	8
+6.3	Tecnica adottata dal laboratorio	9
+
+
+
+
+
+---------------------------------------------
+| |Redatto  | |Approvato |
+---------------------------------------------
+| |RTQL | |RL |
+---------------------------------------------
+| | | | |
+1 
+scopo
+Lo scopo di questa procedura è quello di descrivere le attività da svolgere al fine di attuare una gestione del rischio efficace ed efficiente all’interno del laboratorio, consentendo in ultima analisi di:
+
+* garantire il raggiungimento degli obiettivi previsti; 
+* aumentare le opportunità per raggiungere gli obiettivi;
+* ottenere un miglioramento continuo delle prestazioni;
+* impedire o ridurre gli impatti indesiderati nelle attività di laboratorio.
+
+In particolare, nella presente procedura vengono definite le seguenti attività:
+
+* identificazione dei rischi/opportunità;
+* analisi e trattamento dei rischi;
+* pianificazione opportunità e obiettivi.
+
+Il laboratorio assicura l’efficacia della gestione del rischio, quale elemento di input al riesame della direzione. L’efficienza della gestione del rischio è garantita dalla sua applicazione specificatamente a determinati processi e azioni, identificati dal laboratorio e riportati nel MOD_SWOT_01 ed al §7 della presente procedura.
+2 TERMINI E DEFINIZIONI 
+Rischio: effetto dell’incertezza sugli obiettivi; 
+Gestione del rischio: attività coordinate per guidare e tenere sotto controllo una organizzazione con riferimento al rischio;
+Processo di gestione del rischio: applicazione sistematica delle politiche, procedure e prassi di gestione alle attività di comunicazione, consultazione, definizione del contesto e identificazione, analisi, ponderazione, trattamento, monitoraggio e riesame del rischio;
+Contesto esterno: ambiente esterno nel quale l’organizzazione cerca di conseguire i propri obiettivi;
+Contesto interno: ambiente interno nel quale l’organizzazione cerca di conseguire i propri obiettivi;
+Comunicazione e consultazione: processi continui ed iterativi che un’organizzazione attua per fornire, condividere ed ottenere informazioni e per coinvolgere i portatori di interesse in un dialogo riguardante la gestione del rischio;
+Portatore d’interesse: persona od organizzazione che può influenzare, essere influenzata da, o percepire se stessa come influenzata da una decisione o attività;
+Valutazione del rischio: processo complessivo di identificazione del rischio, analisi del rischio e ponderazione del rischio;
+Identificazione del rischio: processo di ricerca, individuazione e descrizione dei rischi;
+Fonte di rischio: elemento che da solo o in combinazione con altri possiede il potenziale intrinseco di originare il rischio;
+Evento: il verificarsi o il modificarsi di un particolare insieme di circostanze;
+Conseguenza: esito di un evento che influenza gli obiettivi;
+Livello di rischio: espressione quantitativa di un rischio o combinazione di rischi, espresso in termini di combinazione di conseguenze e della loro verosimiglianza; 
+Trattamento del rischio: processo per modificare il rischio;
+Controllo: misura che sta tiene controllo/modifica il rischio;
+Rischio residuo: rischio rimanente a seguito del trattamento del rischio;
+Miglioramento continuo: attività ricorrente per accrescere le prestazioni; 
+Processo: insieme di attività correlate od interagenti che utilizzano input per consegnare un
+risultato atteso;
+Sistema di gestione: insieme di elementi correlati od interagenti di un’organizzazione finalizzato a stabilire politiche, obiettivi e processi per conseguire tali obiettivi;
+Opportunità: evento con potenziali conseguenze positive per l’organizzazione;
+Qualità: grado in cui un insieme di caratteristiche intrinseche di un oggetto soddisfa i requisiti;
+Obiettivo: risultato da conseguire;
+Prestazioni: risultati misurabili;
+Efficienza: rapporto fra il risultato conseguito e le risorse utilizzate;
+Efficacia: grado di realizzazione delle attività pianificate e di conseguimento dei risultati pianificati;
+Riesame: determinazione dell’idoneità, adeguatezza od efficacia di un oggetto per conseguire
+obiettivi stabiliti;
+Monitoraggio: determinazione dello stato di un sistema, di un processo, di un prodotto, di un
+servizio o di un’attività;
+Misurazione: processo per determinare un valore;
+Soddisfazione del cliente: percezione del cliente su quanto le proprie aspettative siano state
+soddisfatte;
+Competenza: capacità di applicare conoscenze ed abilità per conseguire i risultati desiderati;
+Top Management (alta direzione): persona o gruppo di persone che, al livello più elevato, guidano o tengono sotto controllo un’organizzazione.
+3 RIFERIMENTI NORMATIVI
+MOD_ELE_DOC_09   
+4 CAMPO DI APPLICAZIONE
+	4.1 criteri adottati dal laboratorio per la definizione del campo di applicazione
+La gestione del rischio dovrebbe essere incorporata in tutte le prassi operative e processi del laboratorio che potrebbero causare insuccessi, danni o situazioni di non conformità. Il laboratorio ha quindi scelto di sottoporre ad analisi del rischio:
+* Le attività operative direttamente riconducibili ai requisiti di norma che espressamente richiedono una analisi del rischio su base continuativa;
+* i processi e le attività gestionali/operative che impattano direttamente sulla capacità del laboratorio di produrre risultati analitici validi, attesi dal cliente.
+L’identificazione dei rischi da affrontare, delle attività e dei processi coinvolti e delle opportunità da cogliere, viene aggiornata ed eventualmente ottimizzata annualmente, di concerto al riesame della direzione periodico, tenendo in considerazione i seguenti elementi:
+
+* output dal riesame annuale della direzione;
+* analisi degli indicatori di performance del laboratorio;
+* analisi delle dotazioni e delle risorse del laboratorio;
+* analisi della modalità di gestione del cambiamento in laboratorio.
+	* ATTIVITà/PROCESSI COINVOLTI 
+Gli eventuali rischi correlati ai seguenti processi vengono identificati e classificati da RL/RTQL sulla base della loro frequenza/impatto, in modo da definire quali necessitano di trattamento e per i quali verranno quindi definite misure di intervento: 
+
+M1-GESTIONE DEL CLIENTE (Macro Processo): PROCESSI à 1) Riesame delle richieste, delle offerte e dei contratti, 2) selezione dei metodi, 3) collaborazione con il cliente.
+
+M2-PROCESSO ANALITICO (Macro Processo): PROCESSI à 4) campionamento/prelievo, 5) manipolazione degli oggetti sottoposti a prova, 6) attuazione metodi di prova, 7) registrazioni tecniche, 8) presentazione dei risultati – rapporti di prova. 
+
+M3-RISORSE UMANE (Macro Processo): PROCESSI à 9) soggetto giuridico e imparzialità, 10) riservatezza, 11) personale – competenza - personale - autorità e responsabilità.
+
+M4-APPARECCHIATURE (Macro Processo): PROCESSI à 12) disponibilità ed identificazione, 13) manutenzione/taratura e conferma metrologica, 14) registrazioni tecniche, 15) gestione operativa apparecchiature, 16) materiali di riferimento e riferibilità metrologica, 17) campioni di riferimento e riferibilità metrologica.
+
+M5-APPROVVIGIONAMENTO/INFRASTRUTTURA (Macro Processo): PROCESSI à 18) organizzazione locali di prova, 19) controllo degli ambienti e protezione campioni 20) acquisto e gestione apparecchiature/beni/servizi/dotazioni 21) organizzazione dei flussi di lavoro.
+
+M6-VERIFICA E VALIDAZIONE METODI DI PROVA (Macro Processo): PROCESSI à 22) valutazione incertezza di misura, 23) assicurazione validità dei dati, 24) validazione/verifica delle prestazioni dei metodi di prova.
+
+M7-SISTEMA DI GESTIONE ED INFORMAZIONI (Macro Processo): PROCESSI à 25) gestione e controllo della documentazione del sistema, 26) controllo dei dati-gestione delle informazioni, 27) controllo dati e gestione delle registrazioni.
+
+M8-MIGLIORAMENTO E PIANIFICAZIONE (Macro Processo): PROCESSI à 28) reclami, 29) attività non conformi, 30) gestione delle azioni correttive, 31) riesame della direzione, 32) audit interni, 33) miglioramento e pianificazione, 34) azioni per affrontare rischi ed opportunità.
+
+Il laboratorio considera l’analisi del rischio e l’eventuale gestione delle opportunità correlate almeno per i seguenti elementi del sistema di gestione per la qualità (dando indicazione del relativo paragrafo del Manuale Qualità del Laboratorio – MQL):
+
+		* Imparzialità (§4.1 MQL);
+		* Formulazioni delle dichiarazioni di conformità (§7.8.6 MQL);
+		* Attività non conformi (§7.10 MQL);
+		* Miglioramento (§8.6 MQL);
+		* Azioni correttive (§8.7 MQL);
+		* Riesami di direzione (§8.9 MQL);
+		* Selezione, verifica e validazione dei metodi di prova (§7.2), ovvero, ascrizione di ciascun metodo di prova (oggetto di Accreditamento ACCREDIA) attuato dal laboratorio ad una specifica classe di rischio identificata;
+		* Assicurazione della validità dei risultati (§7.7), ovvero, definizione del piano di assicurazione validità dei dati per ogni singolo metodo sulla base del relativo livello di rischio identificato.
+
+In relazione ad ognuno dei punti sopra esposti, il laboratorio valuta su base continuativa il rischio di imparzialità correlato.
+
+La frequenza e l’impatto dei rischi vengono valutati secondo i seguenti indici numerici:
+	* IMPATTO:  
+		* Basso (1-2): errori semplici da correggere;
+		* Moderato (3-4): errori che determinano una perdita di efficienza delle prestazioni e quindi aggravio di costi;
+		* Alto (5): errori gravi con conseguenze significative, come ricadute sul cliente, violazione di requisiti di legge, pericolosità sulla salute.
+
+	* FREQUENZA:
+		* Molto raro (1-2);
+		* Raro (3-4);
+		* Frequente (5).
+
+---------------------------------------------
+| |Tabella delle Frequenze: | | |
+---------------------------------------------
+| |Valore  | |Scala | |Descrizione  |
+---------------------------------------------
+| |1-2 | |Molto raro | |Adeguatezza delle risorse disponibili, semplicità dei processi interessati, livello di controlli interni adeguato, numero limitato di persone coinvolte nel raggiungimento dell’obiettivo. |
+---------------------------------------------
+| |3-4 | |Raro | |Risorse non adeguate al raggiungimento dell’obiettivo, complessità dei processi interessati, livello di controlli non adeguato, obiettivo non completamente definito. |
+---------------------------------------------
+| |5 | |Frequente | |Processo innovativo e complesso con difficoltà a pianificare risorse, persone e controlli necessari al raggiungimento dell’obiettivo. |
+---------------------------------------------
+| | |Tabella della Gravità | | |
+---------------------------------------------
+| |Valore  | |Scala | |Descrizione  |
+---------------------------------------------
+| |1-2 | |Impatto basso | |Le conseguenze relative al verificarsi dell'evento non causano effetti evidenti sugli utenti e sulle parti interessate, non influiscono sulla capacità di raggiungere gli obiettivi o sulla qualità del servizio o sulla conformità dei processi del laboratorio. |
+---------------------------------------------
+| |3-4 | |Impatto moderato | |Le conseguenze sono rilevabili e potrebbero causare insoddisfazione degli utenti o delle parti interessate o un impatto negativo sui processi del laboratorio e/o sulla capacità di raggiungere gli obiettivi. |
+---------------------------------------------
+| |5 | |Impatto alto | |Le conseguenze possono causare effetti evidenti sugli utenti, influire sulla capacità di raggiungere gli obiettivi, sulla qualità del servizio o sulla conformità dei processi del laboratorio. |
+---------------------------------------------
+| | | | | | | | |
+---------------------------------------------
+| |
+---------------------------------------------
+| |LIVELLO DI RISCHIO (LR):  | | | |ALTO |
+---------------------------------------------
+| | | | | |MEDIO |
+---------------------------------------------
+| | | | | |BASSO | |Il rischio è valutato dal prodotto tra i valori della probabilità di accadimento (frequenza) e della gravità (impatto). |
+---------------------------------------------
+| | |
+---------------------------------------------
+| | |
+In questa fase è importante prendere in considerazione dati storici ed informazioni pertinenti ed aggiornate, derivanti anche da conoscenze ed esperienze pregresse, in quanto la gestione del rischio è un’attività di recente introduzione in laboratorio. Per questo motivo devono essere coinvolte, oltre ad RL e RTQL, le funzioni implicate nei processi in esame.
+Seguendo tale classificazione, verranno trattati per primi i rischi correlati ad un marcato impatto e una elevata probabilità di accadere, mentre i rischi con bassa probabilità di accadimento e basso impatto verranno trattati successivamente. In questo modo, l’assegnazione di una priorità di trattamento per i rischi identificati consente di minimizzare le perdite e i costi dovuti ad impatti indesiderati nelle attività del laboratorio. Il risultato di tale fase operativa viene riportato nel MOD_SWOT_01.
+5 RESPONSABILITà
+Il laboratorio assicura che vi siano responsabilità e competenze adeguate per gestire il rischio, compresi l’attuazione e il mantenimento del processo di gestione del rischio e l’assicurazione dell’adeguatezza, efficacia ed efficienza di tutti i controlli. Tutti i membri del laboratorio sono completamente consapevoli dei rischi, dei controlli e dei compiti di cui devono rispondere. Tali responsabilità e competenze vengono assicurate tramite formazione, condivisione delle informazioni e coinvolgimento delle funzioni implicate nel processo.
+RL/RTQL ha la responsabilità di decidere quali sono i rischi da affrontare e le opportunità da cogliere, relativamente ai processi identificati, sulla base delle esigenze del laboratorio e della frequenza/impatto di tali rischi. Le responsabilità delle singole attività descritte sono altresì distribuite alle funzioni operative coinvolte ed assegnatarie.
+6 GESTIONE DEL RISCHIO
+	6.1 GENERALITà
+Le organizzazioni si trovano ad affrontare fattori ed influenze interni ed esterni che rendono incerti il raggiungimento dei propri obiettivi. Il “rischio” è l’effetto che questa incertezza ha sugli obiettivi e i risultati dell’azienda. La gestione del rischio, o “risk management”, consiste nell’identificazione e nel trattamento dei rischi con lo scopo di conferire la massima efficienza operativa a tutti i livelli, minimizzando le perdite e massimizzando le opportunità.
+Il processo di trattamento dei rischi prevede le seguenti fasi, illustrate in figura 1:
+
+
+
+Fig.1 estratto da UNI EN ISO 31000
+Affrontare i rischi e cogliere le opportunità permette di creare una base utile per aumentare l’efficacia del sistema di gestione, ottenendo risultati migliori e prevenendo effetti negativi. In questo modo, il laboratorio è consapevole dei rischi che deve affrontare, è in grado di valutarli/assegnare loro una priorità ed è informato sulle possibili conseguenze. 
+La gestione del rischio, quando attuata e mantenuta attiva efficacemente, consente al laboratorio di:
+
+		* aumentare le opportunità per raggiungere gli scopi e gli obiettivi;
+		* evitare o ridurre ripercussioni indesiderate e potenziali insuccessi per le attività di laboratorio;
+		* assicurare che il sistema di gestione ottenga i risultati previsti;
+		* incoraggiare una gestione proattiva;
+		* migliorare i controlli;
+		* costituire una base affidabile per il processo decisionale e la pianificazione;
+		* migliorare l’efficacia e l’efficienza operative.
+
+L’analisi del rischio deve essere un processo continuo e graduale, che include la comunicazione e consultazione con i portatori di interesse e prevede un miglioramento continuo, tramite periodico monitoraggio dei risultati e riesame del contesto, processi, risorse e opportunità. 
+
+	* TECNICHE OPERATIVE
+Vi sono diversi strumenti e tecniche che possono essere utilizzate nelle varie fasi della gestione del rischio e, talvolta, può essere necessario impiegare più di un metodo. 
+Esempi di strumenti e di tecniche di valutazione del rischio comprendono:
+
+* Brainstorming: prevede sedute intensive di dibattito e confronto delle idee e delle proposte espresse liberamente dai partecipanti;
+
+* Analisi causa-effetto (diagramma di Ishikawa): le cause più probabili di un effetto o problema vengono identificate con brainstorming e presentate con strutture ad albero o a lisca di pesce;
+
+* SWOT analysis: è una metodologia che aiuta a comprendere il rapporto tra ambiente interno, caratterizzato da punti di forza (Strenghts) e di debolezza (Weaknesses), e ambiente esterno, descritto in termini di opportunità (Opportunities) e minacce (Threats).
+
+ 
+Dalla combinazione di questi punti si possono identificare un serie di azioni e strategie, mirate a:
+
+		* cogliere opportunità sfruttando i punti di forza;
+		* ridurre le minacce sfruttando i punti di forza;
+		* superare le debolezze e cogliere opportunità;
+		* minimizzare le minacce derivanti dalle debolezze.
+
+* FMEA di processo: è una tecnica che, per ogni processo, identifica i modi od i meccanismi di inadeguatezza e i loro effetti; 
+
+* Classe di rischio dei metodi di prova: in base ai valori di rilevabilità, probabilità e criticità dell’errore, viene determinata la classe di rischio per ciascun metodo di prova utilizzato dal laboratorio e, di conseguenza, la frequenza delle attività di CQ prevista.  
+	* TECNICA ADOTTATA DAL LABORATORIO
+Il laboratorio ha scelto di adottare la metodologia di seguito descritta basata sul metodo SWOT, sulla base delle proprie esigenze gestionali e operative. 
+Si procede all’identificazione di tutti i possibili rischi connessi ai processi e alle attività del laboratorio che possono impattare in merito al raggiungimento degli obiettivi (così come espresso al §4.2), ed alla identificazione parallela di tutti i punti di forza e le opportunità che possono essere sfruttati per massimizzare i risultati. 
+Al termine di questa analisi, viene compilato il modulo MOD_SWOT_01, rappresentante una matrice SWOT, nella quale verranno inseriti:
+* I rischi che necessitano di trattamento, espressi come Debolezze/Minacce, con correlata descrizione delle azioni di intervento, al fine di superare le debolezze e mitigare le minacce;
+* Le Opportunità e i Punti di forza identificati e le azioni/strategie da intraprendere per ottenere vantaggi dai punti di forza stessi e capitalizzazione delle opportunità.
+
+ 
+
+
+
+
+
+
+
+
+
+
+Fig.2 contenuti dell’analisi SWOT
+
+A questo segue una pianificazione dettagliata nel MOD_PDM_01 per azioni di miglioramento (proattive) / al MOD_TDL_01 per azioni operative (reattive) delle attività da svolgere per il raggiungimento degli obiettivi prefissati. In ultima analisi, viene verificata l’efficacia del trattamento dei rischi e del raggiungimento degli obiettivi, tramite riesame annuale della direzione. 
+
+
+
+
+
+
+
+

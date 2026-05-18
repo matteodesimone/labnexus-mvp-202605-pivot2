@@ -1,0 +1,81 @@
+# ══════════════════════════════════════════════
+# OS files (macOS, Linux, Windows)
+# ══════════════════════════════════════════════
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ══════════════════════════════════════════════
+# IDE / Editor
+# ══════════════════════════════════════════════
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# ══════════════════════════════════════════════
+# Pipeline ephemeral (not committed)
+# ══════════════════════════════════════════════
+.pipeline/state.json
+.pipeline/archive/*
+!.pipeline/archive/applied-proposals/
+.pipeline/onboarding/
+.pipeline/reviews/
+.pipeline/proposed-updates/
+
+# ══════════════════════════════════════════════
+# Go
+# ══════════════════════════════════════════════
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite3
+!.pipeline/test-data/**/*.db
+
+# Testing
+coverage.out
+coverage.html
+
+# mise
+.mise.local.toml
+/.pipeline/bin/

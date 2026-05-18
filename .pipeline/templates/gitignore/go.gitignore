@@ -1,0 +1,29 @@
+# ══════════════════════════════════════════════
+# Go
+# ══════════════════════════════════════════════
+/bin/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite3
+!.pipeline/test-data/**/*.db
+
+# Testing
+coverage.out
+coverage.html
+
+# mise
+.mise.local.toml

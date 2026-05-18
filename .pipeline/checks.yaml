@@ -1,0 +1,41 @@
+# checks.yaml — Quality checks for the coding domain
+# The review engine reads this to generate reviewer prompts.
+# Each check is sent to external reviewers with its lens as contextual focus.
+
+checks:
+  # Core checks (enabled by default)
+  - name: quality
+    description: "Code quality, function constraints, DRY, naming, complexity"
+    lens: "Focus on code quality against the quality metric. Does this implementation meet the agreed standard?"
+    default: true
+
+  - name: test-coverage
+    description: "Every public function tested, edge cases, error paths, BDD scenarios match spec"
+    lens: "Focus on test completeness. Are edge cases tested? Are BDD scenarios meaningful? Any untested paths?"
+    default: true
+
+  - name: security
+    description: "Input validation, injection prevention, auth checks, data exposure, secrets management"
+    lens: "Focus on security. Does this code protect user data? Could an attacker exploit any path? Think adversarially."
+    default: true
+
+  - name: intuitiveness
+    description: "McKay's 8 attributes: discoverability, affordance, comprehensibility, feedback, predictability, efficiency, forgiveness, explorability — on every interface (GUI, CLI, API, error messages)"
+    lens: "Focus on intuitiveness. Read .pipeline/skills/intuitive-design.md. For every interface element (screen, command, output, error), evaluate the 8 McKay attributes. Can a target user use this without reasoning, memorizing, experimenting, seeking help, or training? CRITICAL if discoverability or comprehensibility fails on primary tasks."
+    default: true
+
+  - name: privacy
+    description: "GDPR compliance, data minimization on API responses, consent, deletion path, PII in logs, retention"
+    lens: "Focus on GDPR and data protection. Is personal data minimized? Can users be deleted cleanly? Any data leaks to third parties?"
+    default: true
+
+  # Extended checks (disabled by default — enable per project)
+  - name: data-integrity
+    description: "Database consistency, transaction safety, migration correctness, backup viability"
+    lens: "Focus on data integrity. Are transactions atomic? Can migrations fail safely? Is rollback possible?"
+    default: false
+
+  - name: deploy-verification
+    description: "Deployment readiness, rollback plan, health checks, zero-downtime migration"
+    lens: "Focus on deployment safety. Is rollback possible? Are health checks in place? Can this deploy break production?"
+    default: false

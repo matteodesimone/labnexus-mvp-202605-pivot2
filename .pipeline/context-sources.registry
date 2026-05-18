@@ -1,0 +1,46 @@
+# Context Sources Registry
+#
+# Maps technology names to their official CONTEXT/LLMS file URLs.
+# Used by `vibbly init` and `vibbly context update` to fetch current documentation.
+#
+# Format: technology_key|display_name|url|local_filename
+# Lines starting with # are comments. Empty lines are ignored.
+#
+# Stack mappings (which contexts to fetch per stack):
+#   webapp-rails: tailwind, rails, hotwire, flyio
+#   webapp-svelte: tailwind, svelte, sveltekit, flyio
+#   webapp-fastapi-svelte: tailwind, svelte, sveltekit, fastapi, flyio
+#   backend-cli: (none)
+#   backend-api: fastapi, flyio
+#   godot: godot
+#
+# Conditional (fetched only when UI_COMPONENTS=flowbite in 02-project.md):
+#   webapp-rails + flowbite: + flowbite, flowbite-rails
+#   webapp-svelte + flowbite: + flowbite-svelte
+#   webapp-fastapi-svelte + flowbite: + flowbite-svelte
+
+# UI Styling (always for web stacks)
+tailwind|Tailwind CSS|https://tailwindcss.com/llms-full.txt|tailwind.md
+
+# UI Components (conditional — only when UI_COMPONENTS=flowbite)
+flowbite|Flowbite|https://flowbite.com/docs/getting-started/llms-txt/|flowbite.md
+flowbite-svelte|Flowbite Svelte|https://flowbite-svelte.com/llms-full.txt|flowbite-svelte.md
+flowbite-rails|Flowbite Rails|https://flowbite.com/docs/getting-started/rails/|flowbite-rails.md
+
+# Frontend
+svelte|Svelte 5|https://svelte.dev/llms-full.txt|svelte.md
+sveltekit|SvelteKit|https://svelte.dev/docs/kit/llms-full.txt|sveltekit.md
+
+# Testing
+playwright|Playwright|https://playwright.dev/docs/llms.txt|playwright.md
+
+# Backend
+rails|Ruby on Rails|https://guides.rubyonrails.org/llms.txt|rails.md
+hotwire|Hotwire (Turbo + Stimulus)|https://hotwired.dev/llms.txt|hotwire.md
+fastapi|FastAPI|https://fastapi.tiangolo.com/llms-full.txt|fastapi.md
+
+# Deploy
+flyio|Fly.io|https://fly.io/docs/llms.txt|flyio.md
+
+# Game
+godot|Godot Engine|https://docs.godotengine.org/en/stable/llms.txt|godot.md

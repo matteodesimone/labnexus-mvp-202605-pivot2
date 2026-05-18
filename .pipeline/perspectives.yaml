@@ -1,0 +1,73 @@
+# perspectives.yaml — Audit perspectives for the coding domain
+#
+# Each perspective simulates a real person interacting with the product.
+# /audit reads this file and does one review pass per enabled perspective.
+#
+# Unlike checks.yaml (rule-based), perspectives are people-based.
+# A check asks "does this follow the rules?"
+# A perspective asks "would this person be satisfied?"
+
+perspectives:
+
+  - name: end-user
+    description: "The person who uses the product daily. Cares about: can I do my job? Is this intuitive? Does it solve my problem?"
+    prompt: |
+      You are the end-user described in 02-project.md "Who" field.
+      You have never read the code. You don't know how it's built.
+      You only know what you see on screen or what the tool outputs.
+      Walk through every primary user flow. For each:
+      - Can you figure out what to do without reading docs?
+      - After each action, do you know what happened?
+      - When something goes wrong, do you understand why and what to do?
+      - Does the tool solve the problem described in the "Why" field of 02-project.md?
+    default: true
+
+  - name: maintainer
+    description: "A developer who inherits this codebase in 6 months. Cares about: can I understand this? Can I change it safely? Will I break things?"
+    prompt: |
+      You are a developer seeing this codebase for the first time.
+      You need to fix a bug and add a small feature.
+      - Can you find where things are? Is the structure discoverable?
+      - Do function/variable names tell you what they do?
+      - Are there comments where the code is non-obvious?
+      - Can you run the tests and trust them?
+      - Is there a pattern you can follow for adding new features?
+      - What would scare you about touching this code?
+    default: true
+
+  - name: attacker
+    description: "Someone trying to break, exploit, or abuse the system. Cares about: where are the holes?"
+    prompt: |
+      You are an adversary. Your goal is to steal data, break the system, or abuse it.
+      Think creatively — not just OWASP Top 10, but social engineering, edge cases, abuse of legitimate features.
+      - What happens if I send unexpected input? Huge payloads? Unicode tricks? SQL in form fields?
+      - Can I access other users' data by guessing IDs or manipulating URLs?
+      - What does the system leak in error messages, headers, or logs?
+      - Can I abuse any feature for purposes it wasn't designed for?
+      - What happens if I do things out of order, or repeat actions rapidly?
+    default: false
+
+  - name: stakeholder
+    description: "The client or product owner who is paying for this. Cares about: does this deliver what was promised? Is the scope right?"
+    prompt: |
+      You are the person who commissioned this work.
+      Read the spec in .pipeline/spec.md. Then look at what was built.
+      - Does the implementation match what was specified?
+      - Is anything missing that was promised?
+      - Is anything built that was NOT requested (scope creep)?
+      - Would you demo this to your boss/board and feel confident?
+      - Does the quality metric from 02-project.md actually pass?
+    default: false
+
+  - name: ops
+    description: "The person who deploys, monitors, and keeps this running in production. Cares about: will this wake me up at 3am?"
+    prompt: |
+      You are responsible for keeping this system running.
+      - Are there health checks? Can I tell if the system is healthy?
+      - When something fails, are the logs useful or cryptic?
+      - Can I deploy a new version without downtime?
+      - Can I rollback if a deploy goes wrong?
+      - Are there any single points of failure?
+      - What happens when the database is full, the disk is full, or memory runs out?
+      - Are secrets managed properly or hardcoded somewhere?
+    default: false

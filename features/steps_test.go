@@ -899,14 +899,17 @@ func fakeOllamaStartDefault(c context.Context) (context.Context, error) {
 
 func ollamaNonInAscolto(c context.Context, port int) (context.Context, error) {
 	s := getState(c)
-	// Settiamo endpoint a un host non in ascolto
-	s.env["LABNEXUS_OLLAMA_ENDPOINT"] = fmt.Sprintf("http://127.0.0.1:%d", port)
+	// 192.0.2.0/24 (RFC 5737 TEST-NET-1) è esplicitamente non-routable: il
+	// connect TCP fallisce velocemente in qualsiasi sistema. Su 127.0.0.1
+	// macOS può avere servizi sistema (es. tcpmux su porta 1) che rispondono
+	// in modo non deterministico e causano test flaky.
+	s.env["LABNEXUS_OLLAMA_ENDPOINT"] = fmt.Sprintf("http://192.0.2.1:%d", port)
 	return c, nil
 }
 
 func ollamaNonInAscoltoDefault(c context.Context) (context.Context, error) {
 	s := getState(c)
-	s.env["LABNEXUS_OLLAMA_ENDPOINT"] = "http://127.0.0.1:1"
+	s.env["LABNEXUS_OLLAMA_ENDPOINT"] = "http://192.0.2.1:11434"
 	return c, nil
 }
 

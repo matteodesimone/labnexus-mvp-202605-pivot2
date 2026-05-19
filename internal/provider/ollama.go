@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // OllamaProvider chiama Ollama su /api/chat con streaming NDJSON
@@ -67,7 +68,10 @@ func (p *OllamaProvider) doRequest(ctx context.Context, system, user string, opt
 	req.Header.Set("Content-Type", "application/json")
 	client := p.HTTPClient
 	if client == nil {
-		client = http.DefaultClient
+		// Timeout esplicito per evitare hang lunghi su endpoint che accettano
+		// la connessione TCP ma poi non rispondono (es. macOS port 1 / tcpmux).
+		// 90s è generoso per lo streaming di output lunghi (review-pack Capability C).
+		client = &http.Client{Timeout: 90 * time.Second}
 	}
 	resp, err := client.Do(req)
 	if err != nil {

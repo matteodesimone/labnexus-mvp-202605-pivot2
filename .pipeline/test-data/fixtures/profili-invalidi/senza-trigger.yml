@@ -1,0 +1,8 @@
+# Profilo INVALIDO: campo obbligatorio trigger_prompt mancante
+profilo: test-senza-trigger
+descrizione: profilo senza trigger_prompt
+provider: ollama
+modello: qwen3.6
+kb_files:
+  - CLAUDE.md
+# trigger_prompt: (mancante, deve causare errore di validate)

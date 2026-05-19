@@ -1,0 +1,10 @@
+# DRAFT — profilo INVALIDO per testare il validatore (trigger_prompt troppo corto)
+profilo: test-corto
+descrizione: profilo di test con trigger troppo corto
+provider: ollama
+modello: qwen3.6
+kb_files:
+  - CLAUDE.md
+
+# trigger_prompt: 20 caratteri, sotto la soglia minima (50)
+trigger_prompt: "Fai la revisione."

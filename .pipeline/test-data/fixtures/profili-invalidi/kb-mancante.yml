@@ -1,0 +1,12 @@
+# Profilo INVALIDO: kb_files include un file inesistente (per testare validate negativo)
+profilo: test-kb-mancante
+descrizione: profilo di test con kb_files non esistente
+provider: ollama
+modello: qwen3.6
+kb_files:
+  - CLAUDE.md
+  - non-esiste.md
+trigger_prompt: |
+  Trigger prompt di prova abbastanza lungo per superare i 50 caratteri minimi
+  richiesti dallo schema FR-3, in modo che la validazione fallisca SOLO sul
+  campo kb_files che referenzia un file inesistente.

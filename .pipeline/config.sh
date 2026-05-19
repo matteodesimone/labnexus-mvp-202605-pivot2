@@ -10,7 +10,7 @@
 # --- Project type ---
 # Options: prove-out, internal-tool, experiment
 # See .pipeline/standards/project-types/<type>.md for type-specific rules.
-PROJECT_TYPE="internal-tool"
+PROJECT_TYPE="prove-out"
 
 # --- Deploy / Ship ---
 # SHIP_CMD is set per-domain in framework/domains/<domain>/config-domain.sh
@@ -21,11 +21,11 @@ PROJECT_TYPE="internal-tool"
 
 # --- External LLM reviewers ---
 # Enable the ones you have installed. Claude always participates.
-REVIEWER_GEMINI_ENABLED=true
-REVIEWER_MISTRAL_ENABLED=false
-REVIEWER_OLLAMA_ENABLED=false
-REVIEWER_OLLAMA_MODEL="codellama"
-REVIEWER_CODEX_ENABLED=false
+REVIEWER_GEMINI_ENABLED=false
+REVIEWER_MISTRAL_ENABLED=true
+REVIEWER_OLLAMA_ENABLED=true
+REVIEWER_OLLAMA_MODEL="qwen3-coder"
+REVIEWER_CODEX_ENABLED=true
 
 # --- Review loop ---
 # REVIEW: mode and severity threshold in one value
@@ -40,7 +40,7 @@ REVIEWER_CODEX_ENABLED=false
 #   Ignored when REVIEW="manual".
 #   CRITICAL always escalates to human regardless of REVIEW value.
 #
-REVIEW="manual"
+REVIEW="all"
 REVIEW_MAX_LOOPS=3
 
 # --- Budget (prove-out only, ignored for other types) ---
@@ -151,5 +151,8 @@ DOCS_LLM_CONTEXT=true      # CONTEXT.md
 # Inherits all CHECK_*, MAX_*, DOCS_* settings; adds cli-tool-specific ship command.
 
 # --- Ship command for cli-tool ---
-# Default to goreleaser for Go projects; override per-project if using PyInstaller, manual GitHub release, etc.
-SHIP_CMD="goreleaser release --clean"
+# Sprint 1: NO goreleaser. Binary is NOT signed (Apple Developer cert deferred to Sprint 2).
+# Deliverable is a manual zip with labnexus.app + profili/ + KB-ispettore/ + README.
+# The exact build+zip script will be created during /v-plan; for now a stub keeps the
+# config valid and ensures /v-deploy fails fast if invoked prematurely.
+SHIP_CMD="./scripts/build-zip.sh"

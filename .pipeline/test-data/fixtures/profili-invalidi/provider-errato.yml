@@ -1,0 +1,11 @@
+# Profilo INVALIDO: provider non in {ollama, eurouter}
+profilo: test-provider
+descrizione: profilo di test con provider non ammesso
+provider: openai
+modello: gpt-4
+kb_files:
+  - CLAUDE.md
+trigger_prompt: |
+  Trigger prompt di prova abbastanza lungo per superare i 50 caratteri minimi.
+  La validazione deve fallire SOLO sul campo provider perché openai non è
+  in AllowedProviders (ollama|eurouter).

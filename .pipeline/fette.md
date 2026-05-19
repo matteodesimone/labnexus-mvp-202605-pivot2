@@ -5,7 +5,7 @@
 
 | # | Nome | Gettoni | Feat coperti | Cosa funziona alla fine | Stato |
 |---|---|---|---|---|---|
-| 1 | Scooter — motore + shakedown | 6 | `feat-001` + `feat-002` + `feat-003` | L'utente esegue `labnexus run --profile {revisione, rilievi} ...` end-to-end. Il motore è validato contro entrambi i golden file (Test 1 PG_RISK_LAB, Test 2 ACIAA A1). | in corso |
+| 1 | Scooter — motore + shakedown | 6 | `feat-001` + `feat-002` + `feat-003` | L'utente esegue `labnexus run --profile {revisione, rilievi} ...` end-to-end. Il motore è validato contro entrambi i golden file (Test 1 PG_RISK_LAB, Test 2 ACIAA A1). | **completata 2026-05-19** (zip in `dist/labnexus-sprint1-darwin-arm64.zip`, 3.3 MB; shakedown reale + L2 Denis fuori CI) |
 | 2 | 3 capability nuove a rischio basso/medio | 3 | `feat-004` + `feat-005` + `feat-006` | Disponibili: `review-pack`, `audit-checklist`, `equipment-alert`. Denis può valutarle. | pianificata |
 | 3 | 2 capability rischiose + prompt meta | 3 | `feat-007` + `feat-008` + `feat-meta` | Disponibili: `competence-gap`, `pt-analysis`. Inoltre `meta-prompt-genera-profilo.md` consente a Denis di esplorare nuove capability in autonomia. | pianificata |
 

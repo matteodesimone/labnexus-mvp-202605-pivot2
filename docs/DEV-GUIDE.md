@@ -6,73 +6,86 @@ Per il CTO + futuro contributor. Build, test, layout, gotchas.
 
 - Go 1.22+
 - mise (gestione tool versions via `.mise.toml`)
+- `make` (preinstallato su macOS e Linux)
 - Per i test BDD: il binario viene compilato da `features/main_test.go` al `TestMain` — niente da installare a parte
 - Per `labnexus run` reale: Ollama (`ollama serve`) + modello `qwen3.6` (`ollama pull qwen3.6`); o `EUROUTER_API_KEY` per provider eurouter
 
-## Build
+## Makefile — entry point unico
 
-**Tutto è orchestrato da `make`**. Lancia `make` (senza argomenti) per vedere la lista completa dei target.
+**Tutto si fa via `make`.** Lancia `make` (senza argomenti) per l'help colorato con tutti i target. Sotto il cofano i target chiamano `scripts/build-*.sh` e `go ...`; gli script restano comunque utilizzabili a mano se preferisci.
 
-### Build per la macchina corrente
-```
-make build      # → bin/labnexus
-```
+### Workflow tipici
 
-### Cross-compile (sviluppo Linux/WSL2 → consegna Denis macOS)
-```
-make build-linux     # → dist/labnexus-linux-amd64
-make build-mac       # → labnexus.app (bundle macOS Apple Silicon)
-make build-all       # entrambi
-```
+| Quando | Comando | Cosa fa |
+|---|---|---|
+| Pre-commit / CI | `make ci` | `tidy + vet + test` — ~1.5s su cache calda |
+| Iterazione locale | `make build && make smoke` | Compila + smoke test (list/describe/validate/check su Test 1 reale, no LLM) |
+| Debug test rotti | `make test-verbose` | Output `-v` per individuare lo scenario fallito |
+| Consegna Denis | `make ship` | ⭐ One-shot: `clean + test + vet + build-mac + zip` → `dist/labnexus-sprint1-darwin-arm64.zip` |
+| Pulizia | `make clean` | Rimuove `bin/`, `dist/`, `labnexus.app/`, `labnexus-smoke`, `labnexus-final` |
 
-### Pacchetto di consegna completo
-```
-make ship       # clean + test + vet + build-mac + zip
-                # → dist/labnexus-sprint1-darwin-arm64.zip
-                # contiene labnexus.app + profili/ + KB-ispettore/ + README.md
-```
-
-`make package` se vuoi solo lo zip senza ri-eseguire test.
-
-### Smoke test rapido (validazione binario reale)
-```
-make smoke      # list + describe + validate + check su Test 1 reale (dry-run, no LLM)
-```
-
-## Test
-
-### Tutta la suite
-```
-make test        # → go test ./...
-```
-
-Aspettativa: 10 package `ok`, 0 fail. Su `features/` godog gira ~1.5s, le acceptance hanno tag `~@manual` (escludono scenari hardware-only Finder/drag&drop/Gatekeeper).
-
-### Sotto-categorie
+### Lista completa dei target
 
 ```
-make test-unit       # Solo unit/integration test (internal/)
-make test-bdd        # Solo BDD acceptance (features/)
-make test-verbose    # Output verboso per debug
+make                Help colorato (default)
 
-# Singolo scenario BDD (godog Tags)
+Build:
+  build             Binario per la macchina corrente → bin/labnexus
+  build-mac         Cross-compile darwin/arm64 → labnexus.app
+  build-linux       Cross-compile linux/amd64 → dist/labnexus-linux-amd64
+  build-all         build-mac + build-linux (entrambi i target Sprint 1)
+
+Test:
+  test              go test ./...
+  test-unit         Solo internal/... (unit + integration)
+  test-bdd          Solo features/ (godog BDD, tag ~@manual)
+  test-verbose      Output -v per debug fallimenti
+
+Sanity / Lint:
+  vet               go vet ./...
+  fmt               go fmt ./...
+  lint              golangci-lint run (richiede install separato, vedi sotto)
+  tidy              go mod tidy
+  ci                tidy + vet + test (shortcut CI)
+
+Smoke:
+  smoke             Build + list + describe + validate + check su Test 1 reale (dry-run, no LLM)
+
+Packaging:
+  package           build-mac + zip → dist/labnexus-sprint1-darwin-arm64.zip
+  ship              clean + test + vet + package (pipeline completa di consegna)
+
+Cleanup:
+  clean             Rimuove bin/, dist/, labnexus.app/, smoke binaries
+  distclean         clean + go clean -testcache
+```
+
+### Versioning automatico
+
+`make build` injetta `-X main.version=<git-describe>` nel binario. Quando taggherai (es. `git tag v0.1.0-fetta1`), `labnexus --version` riporterà il tag. Senza tag mostra l'hash del commit corrente + suffisso `-dirty` se ci sono modifiche non committate.
+
+### Singolo scenario BDD (oltre Makefile)
+
+Se vuoi runnare un singolo scenario filtrando per tag godog:
+
+```
 go test ./features/ -godog.tags=@motore-cli
+go test ./features/ -godog.tags="not @manual and @ollama"
 ```
 
-### Linting
-```
-make vet         # go vet ./...
-make fmt         # go fmt ./...
-make lint        # golangci-lint (vedi sotto)
-make ci          # tidy + vet + test (shortcut CI)
-```
+### Linting — install di `golangci-lint`
 
-> **Nota**: `golangci-lint` NON è gestito da mise (il backend aqua va in 401 sul rate-limit GitHub API). Installalo a parte:
-> - **macOS**: `brew install golangci-lint`
-> - **Linux**: vedi <https://golangci-lint.run/welcome/install/#binaries>
-> - **Cross-platform**: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`
->
-> Verifica: `golangci-lint --version` (atteso ≥ 2.0).
+`golangci-lint` NON è gestito da mise (il backend aqua va in 401 sul rate-limit GitHub API). Installalo separatamente:
+
+- **macOS**: `brew install golangci-lint`
+- **Linux/WSL2**: `curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.5.0`
+- **Cross-platform**: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`
+
+Verifica: `golangci-lint --version` (atteso ≥ 2.0). Poi `make lint` funziona.
+
+### Quando NON usare Makefile
+
+I target make sono shortcut idiomatici; sotto il cofano sono `go build`/`go test`/`bash scripts/*.sh`. Se hai bisogno di flag custom (es. `go test -count=10 -race`), invoca direttamente il comando — il Makefile non è una camicia di forza.
 
 ## Layout codice
 

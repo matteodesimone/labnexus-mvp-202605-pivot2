@@ -37,12 +37,13 @@ const maxConsecutiveBadChunks = 10
 // l'override esplicito via env var.
 const ollamaDefaultTimeoutSeconds = 1800
 
-// OllamaDefaultTimeout ritorna il timeout HTTP di default per OllamaProvider.
+// OllamaDefaultTimeout ritorna il timeout HTTP TTFB (Time-To-First-Byte) per OllamaProvider.
+// Semantica post-bugfix-5: questo è il `ResponseHeaderTimeout` del Transport,
+// NON un overall timeout. Il body streaming non è limitato.
+//
 // Precedenza:
 //  1. Env var LABNEXUS_HTTP_TIMEOUT (in secondi) — per casi estremi
-//  2. ollamaDefaultTimeoutSeconds (30 min) — sufficiente per qwen3.6 36B
-//
-// Fix per `.pipeline/bugs/ollama-http-timeout-troppo-stretto-per-reasoning-models.md`.
+//  2. ollamaDefaultTimeoutSeconds (30 min) — sufficiente per warmup qwen3.6 36B
 func OllamaDefaultTimeout(p *OllamaProvider) time.Duration {
 	if v := os.Getenv("LABNEXUS_HTTP_TIMEOUT"); v != "" {
 		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
@@ -51,6 +52,23 @@ func OllamaDefaultTimeout(p *OllamaProvider) time.Duration {
 		// Valore non valido: fallback al default.
 	}
 	return time.Duration(ollamaDefaultTimeoutSeconds) * time.Second
+}
+
+// OllamaDefaultHTTPClient costruisce il default *http.Client quando
+// OllamaProvider.HTTPClient è nil.
+//
+// Design (post-bugfix-5 `http-overall-timeout-tronca-streaming-llm`):
+//   - `Transport.ResponseHeaderTimeout = OllamaDefaultTimeout(p)` — TTFB
+//   - `Client.Timeout = 0` — NESSUN overall timeout, body streaming illimitato
+//
+// Per LLM streaming il body può legittimamente durare ore (output lunghi su
+// modelli grandi). Un overall timeout tronca a metà l'output. La protezione
+// contro "server hung" resta tramite ResponseHeaderTimeout (cancella se gli
+// headers non arrivano in tempo).
+func OllamaDefaultHTTPClient(p *OllamaProvider) *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = OllamaDefaultTimeout(p)
+	return &http.Client{Transport: transport} // Timeout: 0 (no overall, body unlimited)
 }
 
 type ollamaMessage struct {
@@ -99,11 +117,10 @@ func (p *OllamaProvider) doRequest(ctx context.Context, system, user string, opt
 	req.Header.Set("Content-Type", "application/json")
 	client := p.HTTPClient
 	if client == nil {
-		// Timeout esplicito via OllamaDefaultTimeout (30 min default, override
-		// con env LABNEXUS_HTTP_TIMEOUT). Generoso perché modelli reasoning
-		// grandi (qwen3.6 36B MoE) su prompt large fanno context fill +
-		// thinking per minuti prima del primo byte di response.
-		client = &http.Client{Timeout: OllamaDefaultTimeout(p)}
+		// Default client: Transport.ResponseHeaderTimeout (TTFB) + Client.Timeout=0
+		// (no overall, body streaming illimitato). Vedi OllamaDefaultHTTPClient.
+		// Fix bug `http-overall-timeout-tronca-streaming-llm`.
+		client = OllamaDefaultHTTPClient(p)
 	}
 	resp, err := client.Do(req)
 	if err != nil {

@@ -79,3 +79,8 @@ coverage.html
 # mise
 .mise.local.toml
 /.pipeline/bin/
+
+# Build artifacts (Sprint 1)
+/labnexus.app/
+labnexus-smoke
+labnexus-final

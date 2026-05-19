@@ -82,5 +82,6 @@ coverage.html
 
 # Build artifacts (Sprint 1)
 /labnexus.app/
+/bin/
 labnexus-smoke
 labnexus-final

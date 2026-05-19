@@ -11,30 +11,39 @@ Per il CTO + futuro contributor. Build, test, layout, gotchas.
 
 ## Build
 
-### Linux/amd64 (sviluppo CTO su WSL2)
+**Tutto è orchestrato da `make`**. Lancia `make` (senza argomenti) per vedere la lista completa dei target.
+
+### Build per la macchina corrente
 ```
-bash scripts/build-linux.sh
-./dist/labnexus-linux-amd64 --help
+make build      # → bin/labnexus
 ```
 
-### macOS/arm64 (consegna a Denis)
+### Cross-compile (sviluppo Linux/WSL2 → consegna Denis macOS)
 ```
-bash scripts/build-mac.sh
-open labnexus.app
+make build-linux     # → dist/labnexus-linux-amd64
+make build-mac       # → labnexus.app (bundle macOS Apple Silicon)
+make build-all       # entrambi
 ```
 
-### Pacchetto consegna (zip completo)
+### Pacchetto di consegna completo
 ```
-bash scripts/build-zip.sh
-# produce dist/labnexus-sprint1-darwin-arm64.zip
-# contiene labnexus.app + profili/ + KB-ispettore/ + README.md
+make ship       # clean + test + vet + build-mac + zip
+                # → dist/labnexus-sprint1-darwin-arm64.zip
+                # contiene labnexus.app + profili/ + KB-ispettore/ + README.md
+```
+
+`make package` se vuoi solo lo zip senza ri-eseguire test.
+
+### Smoke test rapido (validazione binario reale)
+```
+make smoke      # list + describe + validate + check su Test 1 reale (dry-run, no LLM)
 ```
 
 ## Test
 
 ### Tutta la suite
 ```
-go test ./...
+make test        # → go test ./...
 ```
 
 Aspettativa: 10 package `ok`, 0 fail. Su `features/` godog gira ~1.5s, le acceptance hanno tag `~@manual` (escludono scenari hardware-only Finder/drag&drop/Gatekeeper).
@@ -42,11 +51,9 @@ Aspettativa: 10 package `ok`, 0 fail. Su `features/` godog gira ~1.5s, le accept
 ### Sotto-categorie
 
 ```
-# Unit logic puro
-go test ./internal/...
-
-# BDD acceptance (godog)
-go test ./features/
+make test-unit       # Solo unit/integration test (internal/)
+make test-bdd        # Solo BDD acceptance (features/)
+make test-verbose    # Output verboso per debug
 
 # Singolo scenario BDD (godog Tags)
 go test ./features/ -godog.tags=@motore-cli
@@ -54,9 +61,10 @@ go test ./features/ -godog.tags=@motore-cli
 
 ### Linting
 ```
-golangci-lint run
-gofmt -l .
-go vet ./...
+make vet         # go vet ./...
+make fmt         # go fmt ./...
+make lint        # golangci-lint (vedi sotto)
+make ci          # tidy + vet + test (shortcut CI)
 ```
 
 > **Nota**: `golangci-lint` NON è gestito da mise (il backend aqua va in 401 sul rate-limit GitHub API). Installalo a parte:

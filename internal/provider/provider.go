@@ -26,9 +26,10 @@ type Options struct {
 
 // StreamEvent rappresenta un singolo evento dello stream.
 type StreamEvent struct {
-	Token string
-	Done  bool
-	Err   error
+	Token        string
+	Done         bool
+	Err          error
+	NoDoneMarker bool // true quando Done=true emesso per EOF post-content (no done:true esplicito dal server)
 }
 
 // LLMProvider è l'interface unica di chiamata.

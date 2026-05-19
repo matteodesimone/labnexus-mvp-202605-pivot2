@@ -272,6 +272,9 @@ func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, st
 		b.WriteString(ev.Token)
 		if ev.Done {
 			stato = "completato"
+			if ev.NoDoneMarker {
+				log.Warn("stream chiuso senza done marker dal server (output verosimilmente completo, ma il modello non ha emesso il chunk finale done:true — vedi bug eof-post-content-falsamente-interrotto)")
+			}
 			break
 		}
 	}

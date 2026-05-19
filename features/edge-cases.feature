@@ -41,14 +41,15 @@ Funzionalità: Edge case del motore LabNexus
     E stderr contiene "Ollama non raggiungibile su localhost:11434"
     E stderr suggerisce "ollama serve"
 
-  # --- EC-8: streaming interrotto ---
+  # --- EC-8: streaming chiuso senza done marker (rivisto dal bugfix
+  # `eof-post-content-falsamente-interrotto` del 2026-05-19) ---
 
-  Scenario: interruzione di rete a metà streaming
+  Scenario: EOF post-content interpretato come "completato (no done marker)"
     Dato che la connessione cade dopo che il provider ha emesso ~50% dei token
     Quando il client gestisce l'interruzione
     Allora il file di output esiste con il contenuto parziale
-    E il frontmatter riporta "stato: interrotto"
-    E exit code è 1
+    E il frontmatter riporta "stato: completato"
+    E stderr contiene "stream chiuso senza done marker"
 
   # --- EC-9: input vuoto o solo formati non supportati ---
 

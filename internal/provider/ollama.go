@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -151,6 +153,12 @@ func buildOllamaOptions(opts Options) map[string]interface{} {
 
 // consumeOllamaStream legge incrementalmente NDJSON e tollera fino a
 // maxConsecutiveBadChunks chunk malformati (EC-13).
+//
+// Edge case "EOF post-content" (bug `eof-post-content-falsamente-interrotto`):
+// se il server chiude la connessione DOPO aver emesso content ma SENZA il
+// chunk finale `done: true`, emettiamo `Done: true, NoDoneMarker: true` per
+// informare il caller che l'output è verosimilmente completo ma manca il
+// marker formale (capita con alcuni modelli reasoning su Ollama).
 func consumeOllamaStream(body interface{ Read(p []byte) (n int, err error); Close() error }, ch chan<- StreamEvent) {
 	defer close(ch)
 	defer body.Close()
@@ -176,11 +184,26 @@ func consumeOllamaStream(body interface{ Read(p []byte) (n int, err error); Clos
 			ch <- StreamEvent{Token: c.Message.Content}
 		}
 		if c.Done {
+			// Caso normale: il server ha emesso done:true. NoDoneMarker resta false.
 			ch <- StreamEvent{Done: true}
 			return
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		ch <- StreamEvent{Err: fmt.Errorf("ollama: scanner: %w", err)}
+	// Il loop è terminato senza done:true. Casi:
+	//   1) scanner.Err() == nil: EOF clean. Probabile "completato senza done marker".
+	//   2) scanner.Err() == io.ErrUnexpectedEOF: NDJSON troncato a metà linea. Stesso caso:
+	//      il server ha chiuso, possibly dopo aver completato il modello.
+	//   3) altri errori scanner: errore vero (es. token buffer overflow).
+	scanErr := scanner.Err()
+	if scanErr != nil && !errorsIsUnexpectedEOF(scanErr) {
+		ch <- StreamEvent{Err: fmt.Errorf("ollama: scanner: %w", scanErr)}
+		return
 	}
+	// EOF clean o unexpected EOF post-content: trattiamo come completato
+	// con NoDoneMarker=true, il caller (drainStream) loggerà un warning.
+	ch <- StreamEvent{Done: true, NoDoneMarker: true}
+}
+
+func errorsIsUnexpectedEOF(err error) bool {
+	return errors.Is(err, io.ErrUnexpectedEOF)
 }

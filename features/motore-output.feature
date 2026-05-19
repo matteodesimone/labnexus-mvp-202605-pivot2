@@ -31,9 +31,13 @@ Funzionalità: Motore LabNexus — output markdown con frontmatter tracciabile
     Allora il nuovo file ha nome "2026-05-18T141022_revisione_doc_2.md"
     E nessun file esistente viene sovrascritto
 
-  Scenario: streaming interrotto produce comunque un file parziale
+  # EC-8 aggiornato dal bugfix `eof-post-content-falsamente-interrotto` (2026-05-19):
+  # un EOF post-content del server Ollama è tollerato come "completato (no done marker)"
+  # per evitare exit 1 spurio quando il modello ha finito ma non ha emesso done:true
+  # (caso reale osservato con qwen3.6 36B reasoning model).
+  Scenario: streaming chiuso server-side senza done marker produce file completo + warning
     Dato che la connessione al provider viene interrotta dopo metà output
     Quando l'eseguibile chiude la chiamata
     Allora il file di output esiste con il contenuto parziale
-    E il frontmatter contiene "stato: interrotto"
-    E exit code è 1
+    E il frontmatter contiene "stato: completato"
+    E stderr contiene "stream chiuso senza done marker"

@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,6 +23,33 @@ type OllamaProvider struct {
 func (p *OllamaProvider) Name() string { return "ollama" }
 
 const maxConsecutiveBadChunks = 10
+
+// ollamaDefaultTimeoutSeconds è il valore di default in secondi quando l'env
+// `LABNEXUS_HTTP_TIMEOUT` non è settato (o ha valore non valido).
+// 30 minuti = 1800s coprono il warmup + context fill + decode per:
+//   - Qwen 3.6 36B MoE (23 GB su disco) su Apple Silicon
+//   - Prompt fino a ~128k token (limite context window)
+//   - max_tokens=8192 di decode con reasoning model (<think> block)
+//
+// Casi più estremi (modelli ancora più grandi, prompt più grandi) richiedono
+// l'override esplicito via env var.
+const ollamaDefaultTimeoutSeconds = 1800
+
+// OllamaDefaultTimeout ritorna il timeout HTTP di default per OllamaProvider.
+// Precedenza:
+//  1. Env var LABNEXUS_HTTP_TIMEOUT (in secondi) — per casi estremi
+//  2. ollamaDefaultTimeoutSeconds (30 min) — sufficiente per qwen3.6 36B
+//
+// Fix per `.pipeline/bugs/ollama-http-timeout-troppo-stretto-per-reasoning-models.md`.
+func OllamaDefaultTimeout(p *OllamaProvider) time.Duration {
+	if v := os.Getenv("LABNEXUS_HTTP_TIMEOUT"); v != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+			return time.Duration(n) * time.Second
+		}
+		// Valore non valido: fallback al default.
+	}
+	return time.Duration(ollamaDefaultTimeoutSeconds) * time.Second
+}
 
 type ollamaMessage struct {
 	Role    string `json:"role"`
@@ -68,10 +97,11 @@ func (p *OllamaProvider) doRequest(ctx context.Context, system, user string, opt
 	req.Header.Set("Content-Type", "application/json")
 	client := p.HTTPClient
 	if client == nil {
-		// Timeout esplicito per evitare hang lunghi su endpoint che accettano
-		// la connessione TCP ma poi non rispondono (es. macOS port 1 / tcpmux).
-		// 90s è generoso per lo streaming di output lunghi (review-pack Capability C).
-		client = &http.Client{Timeout: 90 * time.Second}
+		// Timeout esplicito via OllamaDefaultTimeout (30 min default, override
+		// con env LABNEXUS_HTTP_TIMEOUT). Generoso perché modelli reasoning
+		// grandi (qwen3.6 36B MoE) su prompt large fanno context fill +
+		// thinking per minuti prima del primo byte di response.
+		client = &http.Client{Timeout: OllamaDefaultTimeout(p)}
 	}
 	resp, err := client.Do(req)
 	if err != nil {

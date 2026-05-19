@@ -86,10 +86,14 @@ Dopo che hai valutato l'output, puoi aggiungere al frontmatter `valutazione_deni
 ## Quando qualcosa va storto
 
 - **macOS non apre l'app** → Gatekeeper, vedi sopra ("Prima volta su un Mac nuovo")
-- **"Ollama non raggiungibile"** → apri Terminal e lancia `ollama serve` in una finestra separata
+- **"Ollama non raggiungibile" + `context deadline exceeded`** → due possibilità:
+  - Ollama davvero down: apri Terminal e lancia `ollama serve` in una finestra separata
+  - Ollama OK ma modello grande in warmup (es. qwen3.6 36B può impiegare 5-15 minuti al primo lancio per il context fill + thinking). Il timeout HTTP di default è 30 minuti, sufficiente per la maggior parte dei casi. **Se il tuo modello/prompt richiede più tempo**, aumenta il timeout: `LABNEXUS_HTTP_TIMEOUT=3600 ./labnexus run ...` (3600s = 1 ora)
+  - Verifica veloce: `curl http://localhost:11434/api/tags` deve rispondere con la lista dei modelli
 - **"profile: kb_file ... non esiste"** → il profilo cita un file della KB che non c'è nella cartella `KB-ispettore`. Verifica di avere installato la KB completa
 - **"context window superato"** → l'input è troppo grande per il modello. Riduci il numero di file di input
 - **PDF non si legge** → il PDF è troppo complesso per il parser interno. Convertilo manualmente con `pandoc input.pdf -o input.md` e riprova
+- **Il PDF passa la lettura ma l'output del modello è confuso** → il testo estratto dal PDF è incompleto (probabile su PDF scansionati, multi-colonna fitto, formule). Esegui `labnexus check <profilo> --input <dir> --show-prompt` per vedere il testo estratto; se è sbagliato, converti il PDF in `.md` manualmente prima
 - **Output strano** → segnala al CTO; potrebbe essere un problema del modello su quella capability specifica
 
 ## Dati e privacy

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/labnexus/labnexus/internal/paths"
 	"github.com/labnexus/labnexus/internal/profile"
 	"github.com/labnexus/labnexus/internal/runner"
 	"github.com/labnexus/labnexus/internal/tui"
@@ -68,6 +69,13 @@ func newExit(code int, format string, args ...interface{}) *exitError {
 }
 
 func buildRoot() *cobra.Command {
+	// FR-2: default di --profiles-dir / --kb-dir risolti **relativi al binario**
+	// (via os.Executable + DeliveryRootForBinary), NON al cwd del processo.
+	// Fix bug `.pipeline/bugs/path-resolution-profili-kb-cwd-relative.md`.
+	deliveryRoot := paths.DeliveryRoot()
+	defaultProfiliDir := filepath.Join(deliveryRoot, "profili")
+	defaultKbDir := filepath.Join(deliveryRoot, "KB-ispettore")
+
 	root := &cobra.Command{
 		Use:   "labnexus",
 		Short: "Eseguibile LabNexus — capability ispettive AICertus via Qwen locale (FR-1).",
@@ -77,8 +85,8 @@ func buildRoot() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
-	root.PersistentFlags().String("profiles-dir", "./profili", "cartella con i file profilo .yml")
-	root.PersistentFlags().String("kb-dir", "./KB-ispettore", "cartella della KB-ispettore di Denis")
+	root.PersistentFlags().String("profiles-dir", defaultProfiliDir, "cartella con i file profilo .yml (default: <delivery-root>/profili)")
+	root.PersistentFlags().String("kb-dir", defaultKbDir, "cartella della KB-ispettore di Denis (default: <delivery-root>/KB-ispettore)")
 	root.PersistentFlags().String("provider", "", "override del provider del profilo: ollama|eurouter (FR-12)")
 	root.AddCommand(newRunCmd(), newListCmd(), newDescribeCmd(), newCheckCmd(), newValidateCmd())
 	return root

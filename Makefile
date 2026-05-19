@@ -101,18 +101,20 @@ tidy: ## go mod tidy (pulisce go.mod / go.sum)
 
 .PHONY: smoke
 smoke: build ## Smoke test del binario: list + describe + check su Test 1 reale (dry-run)
+	@# Nota: bin/labnexus risolve i default profili/KB relativi al binario (bin/profili
+	@# non esiste); per il dev workflow puntiamo esplicitamente a quelli della repo.
 	@echo ""
 	@echo "→ labnexus list"
-	@./bin/$(BINARY) list
+	@./bin/$(BINARY) --profiles-dir profili --kb-dir KB-ispettore list
 	@echo ""
 	@echo "→ labnexus describe revisione"
-	@./bin/$(BINARY) describe revisione
+	@./bin/$(BINARY) --profiles-dir profili --kb-dir KB-ispettore describe revisione
 	@echo ""
 	@echo "→ labnexus validate revisione"
-	@./bin/$(BINARY) validate revisione
+	@./bin/$(BINARY) --profiles-dir profili --kb-dir KB-ispettore validate revisione
 	@echo ""
 	@echo "→ labnexus check revisione --input <test1-input>  (dry-run, no LLM)"
-	@./bin/$(BINARY) check revisione --input "$(SMOKE_INPUT)" 2>&1 | tail -10
+	@./bin/$(BINARY) --profiles-dir profili --kb-dir KB-ispettore check revisione --input "$(SMOKE_INPUT)" 2>&1 | tail -10
 
 # ─── Packaging / Ship ────────────────────────────────────────────────────────
 

@@ -168,6 +168,53 @@ func TestBundle_WrapperIsExecutable(t *testing.T) {
 	}
 }
 
+// TestBundle_BinaryFindsProfilesAdjacentToApp simula la consegna a Denis:
+// estrae il bundle in una tmp dir, copia profili/ e KB-ispettore/ adiacenti,
+// lancia il binario reale con cwd = HOME → deve trovare i profili.
+// Reproducer per `path-resolution-profili-kb-cwd-relative.md`.
+func TestBundle_BinaryFindsProfilesAdjacentToApp(t *testing.T) {
+	tmp := t.TempDir()
+	// Copia il bundle .app appena costruito nella tmp dir
+	srcBundle := filepath.Join(repoRoot, bundleDir)
+	dstBundle := filepath.Join(tmp, bundleDir)
+	if err := exec.Command("cp", "-R", srcBundle, dstBundle).Run(); err != nil {
+		t.Fatalf("cp bundle: %v", err)
+	}
+	// Costruisci un profilo minimale + KB stub adiacenti al bundle
+	if err := os.MkdirAll(filepath.Join(tmp, "profili"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmp, "KB-ispettore"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(tmp, "KB-ispettore", "CLAUDE.md"), []byte("stub kb"), 0o644)
+	profileBody := `profilo: smoketest
+descrizione: profilo di smoke test path resolution
+provider: ollama
+modello: qwen3.6
+kb_files:
+  - CLAUDE.md
+trigger_prompt: |
+  Trigger prompt di test di lunghezza sufficiente per superare la soglia minima
+  di 50 caratteri (FR-3). Tono ispettivo.
+`
+	_ = os.WriteFile(filepath.Join(tmp, "profili", "smoketest.yml"), []byte(profileBody), 0o644)
+
+	// Lancia il binario reale (NON il wrapper, che aprirebbe Terminal).
+	// CWD = un terzo path completamente scollegato (sentenza del bug).
+	binPath := filepath.Join(dstBundle, "Contents/MacOS/labnexus-bin")
+	cwd := t.TempDir() // cwd diversa sia dal bundle sia dalla repo
+	cmd := exec.Command(binPath, "list")
+	cmd.Dir = cwd
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("labnexus list ha fallito con cwd=%q: %v\n%s", cwd, err, out)
+	}
+	if !strings.Contains(string(out), "smoketest") {
+		t.Errorf("output di `list` deve contenere il profilo smoketest:\n%s", out)
+	}
+}
+
 // TestBundle_InfoPlistDeclaresCFBundleExecutable verifica che Info.plist
 // dichiari CFBundleExecutable = "labnexus" (= il wrapper, non il binario).
 func TestBundle_InfoPlistDeclaresCFBundleExecutable(t *testing.T) {

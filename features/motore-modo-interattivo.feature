@@ -50,11 +50,16 @@ Funzionalità: Motore LabNexus — modalità interattiva TUI cross-platform e bu
   # --- FR-11: bundle .app macOS + binario Linux ---
 
   @manual
-  Scenario: bundle .app contiene l'eseguibile arm64 e Info.plist valido
+  Scenario: bundle .app contiene wrapper bash + binario reale e Info.plist valido
     Quando ispeziono "labnexus.app"
-    Allora esiste "labnexus.app/Contents/MacOS/labnexus" eseguibile arm64
+    Allora esiste "labnexus.app/Contents/MacOS/labnexus" come wrapper bash (testo, shebang #!)
+    E esiste "labnexus.app/Contents/MacOS/labnexus-bin" come binario Mach-O arm64
+    E il wrapper invoca "osascript" per aprire Terminal e lanciare labnexus-bin
     E "labnexus.app/Contents/Info.plist" dichiara CFBundleExecutable = "labnexus"
     E "Info.plist" dichiara LSHandlerRank e supporto a "Folder" (per drag&drop)
+    # Nota: la verifica automatizzata di questo layout è in internal/bundle/bundle_test.go
+    # (5 test, build tag darwin). Questo scenario @manual resta per documentazione end-to-end
+    # (validazione Finder + Terminal reali — non automatizzabile in CI).
 
   @manual
   Scenario: doppio click sul .app apre Terminal e avvia la TUI

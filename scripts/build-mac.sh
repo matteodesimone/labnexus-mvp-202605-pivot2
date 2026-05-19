@@ -42,27 +42,42 @@ set -eu
 DIR="$(cd "$(dirname "$0")" && pwd)"
 BIN="${DIR}/labnexus-bin"
 
-# Funzione: lancia il binario in Terminal via osascript.
-# $1 = comando shell singolarmente quotato da eseguire in Terminal.
-launch_in_terminal() {
-  /usr/bin/osascript <<EOF
-tell application "Terminal"
-  activate
-  do script "$1"
-end tell
-EOF
+# Escape un argomento per inclusione in `do script "..."` di AppleScript.
+# Doppio livello:
+#   1) shell single-quoting: ' → '\''  (per il `do script` che esegue shell)
+#   2) AppleScript string literal: \ → \\, " → \"  (per la stringa AppleScript stessa)
+# Questo gestisce robustamente path con apostrofi, virgolette, backslash.
+escape_for_osascript() {
+  printf %s "$1" \
+    | sed "s/'/'\\\\''/g" \
+    | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
-# Se è stato passato un argomento posizionale che è una cartella esistente
-# (caso drag&drop dal Finder), passala come input al binario.
+# Costruisce il comando shell da passare a `do script`, sempre passando per escape_for_osascript.
+build_command() {
+  local bin_safe input_safe
+  bin_safe=$(escape_for_osascript "$1")
+  if [ "$#" -ge 2 ] && [ -n "$2" ]; then
+    input_safe=$(escape_for_osascript "$2")
+    printf "'%s' '%s'" "$bin_safe" "$input_safe"
+  else
+    printf "'%s'" "$bin_safe"
+  fi
+}
+
+# Determina l'argomento posizionale (drag&drop di una cartella esistente)
 if [ "$#" -ge 1 ] && [ -d "$1" ]; then
-  # Escape singole virgolette nel path per osascript (rare ma possibili)
-  INPUT_PATH=$(printf %s "$1" | sed "s/'/'\\\\''/g")
-  launch_in_terminal "'${BIN}' '${INPUT_PATH}'"
+  CMD=$(build_command "${BIN}" "$1")
 else
-  # Doppio click semplice: TUI parte dalla selezione profilo
-  launch_in_terminal "'${BIN}'"
+  CMD=$(build_command "${BIN}")
 fi
+
+/usr/bin/osascript <<EOF
+tell application "Terminal"
+  activate
+  do script "${CMD}"
+end tell
+EOF
 WRAPPER
 
 chmod +x "${APP_BIN_DIR}/${APP_NAME}"

@@ -86,6 +86,28 @@ func TestBundle_RealBinaryAtLabnexusBin(t *testing.T) {
 	}
 }
 
+// TestBundle_WrapperEscapesApplescriptStringChars verifica che il wrapper
+// abbia escape per `\` e `"` (caratteri speciali in AppleScript string literal).
+// Senza questo, un path tipo `Test "1"` farebbe fallire osascript con errore di sintassi.
+func TestBundle_WrapperEscapesApplescriptStringChars(t *testing.T) {
+	wrapper := macOSBin("labnexus")
+	data, err := os.ReadFile(wrapper)
+	if err != nil {
+		t.Fatalf("read wrapper: %v", err)
+	}
+	if !looksLikeText(data) {
+		t.Skip("wrapper non è testo — gli altri test segnalano già il problema")
+	}
+	content := string(data)
+	// Cerca segni dell'escape AppleScript: sostituzione di " → \" e \ → \\
+	if !strings.Contains(content, `s/"/\\"/g`) && !strings.Contains(content, `s/"/\\\\"/g`) {
+		t.Errorf("wrapper deve escapare le virgolette doppie per AppleScript string literal — manca pattern sed `s/\"/\\\\\"/g`")
+	}
+	if !strings.Contains(content, `s/\\/\\\\/g`) {
+		t.Errorf("wrapper deve escapare i backslash per AppleScript string literal — manca pattern sed `s/\\\\/\\\\\\\\/g`")
+	}
+}
+
 // TestBundle_WrapperLaunchesTerminalViaOsascript verifica che il wrapper
 // usi `osascript` per aprire Terminal e lanciare il binario reale.
 // Senza questo, il doppio click esegue il binario senza TTY → ErrNonTTY → bug.

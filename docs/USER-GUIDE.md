@@ -40,6 +40,8 @@ Trascina una cartella sull'icona di `labnexus.app`: la TUI parte già con quella
 labnexus run --profile revisione --input /path/Test1 --output /path/Out
 ```
 
+> **Nota tecnica**: il "comando" `labnexus` nel PATH dovrebbe essere il **binario reale**, NON il wrapper del bundle `.app`. Se hai installato solo `labnexus.app`, usa il binario interno: `./labnexus.app/Contents/MacOS/labnexus-bin`. Lanciare il wrapper (`labnexus` dentro `.app/Contents/MacOS/`) da terminale è valido ma aprirà una **seconda** finestra Terminal — è il comportamento corretto per il doppio click dal Finder, scomodo se sei già in una shell.
+
 Comandi accessori:
 - `labnexus list` — elenca i profili installati con descrizione
 - `labnexus describe revisione` — dettagli del profilo (provider, modello, file della KB usati)

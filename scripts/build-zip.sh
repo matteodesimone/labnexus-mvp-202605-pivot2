@@ -12,8 +12,10 @@ bash scripts/build-mac.sh
 rm -rf "${DIST_DIR}/${ZIP_NAME}"
 mkdir -p "${DIST_DIR}"
 
-# La KB-ispettore è un symlink → la zip risolve seguendo il link.
-zip -ry "${DIST_DIR}/${ZIP_NAME}" \
+# IMPORTANTE: niente -y. `zip -r` (senza -y) FOLLOW i symlink e include i file
+# reali della KB-ispettore. Con -y il symlink verrebbe preservato e Denis
+# riceverebbe un link broken al primo extract.
+zip -r "${DIST_DIR}/${ZIP_NAME}" \
   labnexus.app \
   profili \
   KB-ispettore \

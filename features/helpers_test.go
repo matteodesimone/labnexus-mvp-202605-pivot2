@@ -245,6 +245,11 @@ func (s *scenarioState) buildEnv() []string {
 	if s.fakeEurouter != nil {
 		keep = append(keep, "LABNEXUS_EUROUTER_ENDPOINT="+s.fakeEurouter.URL)
 	}
+	// Bug #001 gate: nei test BDD il gate è SEMPRE settato perché
+	// l'ambiente di test è controllato (httptest server locale o nessuna
+	// vera chiamata cloud). Il gate stesso è coperto da unit test in
+	// internal/provider/select_test.go.
+	keep = append(keep, "LABNEXUS_ALLOW_CLOUD_PROVIDER=approved-for-synthetic-data")
 	for k, v := range s.env {
 		keep = append(keep, k+"="+v)
 	}

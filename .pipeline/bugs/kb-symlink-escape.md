@@ -1,10 +1,11 @@
 ---
 severity: high
-status: open
+status: fixed
 created: 2026-05-19
+fixed_at: 2026-05-20
 source: review esterna (codex-security)
-fix: ""
-test: ""
+fix: validateKbFiles in internal/profile/profile.go ora usa filepath.EvalSymlinks su kbDir + ogni candidato kb_file, e verifica che il path REALE (post symlink resolve) rimanga dentro la kbDir reale. Defense in depth: il check lessicale precedente è mantenuto. Il caso legittimo "kbDir stesso è un symlink (KB-ispettore root)" è esplicitamente coperto da test.
+test: internal/profile/profile_test.go::TestValidate_RejectsKbFileSymlink (+ TestValidate_AcceptsKbDirItselfSymlink per il caso legittimo)
 ---
 
 # Bug: `KB-ispettore/` simlink possono uscire dalla cartella KB ed esfiltrare file

@@ -1,10 +1,11 @@
 ---
 severity: critical
-status: open
+status: fixed
 created: 2026-05-19
+fixed_at: 2026-05-20
 source: review esterna (codex + mistral, CONFIRMED multi-reviewer)
-fix: ""
-test: ""
+fix: provider.Select ritorna ErrEurouterGateMissing se LABNEXUS_ALLOW_CLOUD_PROVIDER non è impostato. Senza gate, eurouter è rifiutato indipendentemente da flag/env/profilo. BDD helpers settano il gate per default (ambiente test controllato). Gate test in internal/provider/select_test.go.
+test: internal/provider/select_test.go::TestSelect_EurouterRejectedWithoutApprovalGate (+3 varianti: ViaEnv, ViaProfile, AcceptedWithGate)
 ---
 
 # Bug: provider EUrouter selezionabile senza gate di approvazione → rischio esfiltrazione dati SGQ

@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -14,6 +16,14 @@ import (
 var (
 	ErrMissingAPIKey     = errors.New("EUROUTER_API_KEY non impostata")
 	ErrOllamaUnreachable = errors.New("Ollama non raggiungibile su localhost:11434 — verifica che ollama serve sia attivo")
+	// ErrEurouterGateMissing è restituito quando si tenta di selezionare il
+	// provider eurouter senza il gate esplicito LABNEXUS_ALLOW_CLOUD_PROVIDER.
+	// Bug #001 (.pipeline/bugs/privacy-eurouter-gate-mancante.md): protegge
+	// dati SGQ da esfiltrazione accidentale al gateway cloud (NFR-1).
+	ErrEurouterGateMissing = errors.New(`provider eurouter non ammesso senza approval esplicito.
+Imposta l'env var LABNEXUS_ALLOW_CLOUD_PROVIDER=approved-for-synthetic-data
+per autorizzare il provider cloud. SU DATI REALI DEL SGQ DI DENIS USARE OLLAMA LOCALE,
+NON EUROUTER. EUrouter è strumento di debug interno su dati sintetici/anonimizzati.`)
 )
 
 // Options sono i parametri di chiamata.
@@ -57,8 +67,19 @@ func Select(providerOverride, providerEnv, providerFromProfile string) (LLMProvi
 		if endpoint == "" {
 			endpoint = "http://localhost:11434"
 		}
+		// Bug #003 gate: l'endpoint Ollama deve essere loopback per
+		// rispettare la promise "provider locale = on-device". Override a
+		// host remoti richiede LABNEXUS_ALLOW_CLOUD_PROVIDER (stesso gate
+		// di eurouter, bug #001). .pipeline/bugs/ollama-endpoint-env-override-leak.md
+		if err := requireLoopbackOrCloudGate(endpoint); err != nil {
+			return nil, err
+		}
 		return &OllamaProvider{Endpoint: endpoint}, nil
 	case "eurouter":
+		// Bug #001 gate: eurouter è ammesso solo con approval esplicito.
+		if strings.TrimSpace(os.Getenv("LABNEXUS_ALLOW_CLOUD_PROVIDER")) == "" {
+			return nil, ErrEurouterGateMissing
+		}
 		endpoint := os.Getenv("LABNEXUS_EUROUTER_ENDPOINT")
 		if endpoint == "" {
 			endpoint = "https://api.eurouter.ai/v1/chat/completions"
@@ -73,4 +94,38 @@ func Select(providerOverride, providerEnv, providerFromProfile string) (LLMProvi
 	default:
 		return nil, fmt.Errorf("provider: %q non ammesso (consentiti: ollama, eurouter)", chosen)
 	}
+}
+
+// requireLoopbackOrCloudGate verifica che l'endpoint URL fornito risolva a
+// un host loopback (127.0.0.0/8, ::1, localhost). Se non loopback, è ammesso
+// solo se LABNEXUS_ALLOW_CLOUD_PROVIDER è settato (gate cloud esplicito, lo
+// stesso usato per eurouter). Bug #003 fix.
+func requireLoopbackOrCloudGate(endpoint string) error {
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("provider: endpoint Ollama %q non parsabile: %w", endpoint, err)
+	}
+	host := u.Hostname()
+	if isLoopbackHost(host) {
+		return nil
+	}
+	if strings.TrimSpace(os.Getenv("LABNEXUS_ALLOW_CLOUD_PROVIDER")) != "" {
+		return nil
+	}
+	return fmt.Errorf(`LABNEXUS_OLLAMA_ENDPOINT punta a host non-loopback %q.
+Il provider "ollama" deve restare locale (NFR-1, promise post-pivot 2).
+Per usare un endpoint Ollama remoto in scenari di dev avanzati, imposta anche
+LABNEXUS_ALLOW_CLOUD_PROVIDER=approved-for-synthetic-data. SU DATI REALI DEL
+SGQ USARE SOLO OLLAMA LOCALE`, host)
+}
+
+// isLoopbackHost ritorna true se host è un indirizzo loopback o "localhost".
+func isLoopbackHost(host string) bool {
+	if host == "" || host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }

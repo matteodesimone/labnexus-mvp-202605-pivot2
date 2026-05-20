@@ -1,10 +1,11 @@
 ---
 severity: high
-status: open
+status: fixed
 created: 2026-05-19
+fixed_at: 2026-05-20
 source: review esterna (codex-security)
-fix: ""
-test: ""
+fix: provider.Select valida l'endpoint Ollama tramite requireLoopbackOrCloudGate. Solo host loopback (127.0.0.0/8, ::1, "localhost") sono ammessi di default. Host remoti richiedono LABNEXUS_ALLOW_CLOUD_PROVIDER esplicito (stesso gate di #001 eurouter). Default "http://localhost:11434" preservato.
+test: internal/provider/select_test.go::TestSelect_OllamaRejectsRemoteEndpoint (+5 varianti: AcceptsLoopback, AcceptsLocalhost, AcceptsIPv6Loopback, RemoteAcceptedWithCloudGate, DefaultEndpointStillLocalhost)
 ---
 
 # Bug: `LABNEXUS_OLLAMA_ENDPOINT` può deviare il "provider locale" a un host remoto silenziosamente

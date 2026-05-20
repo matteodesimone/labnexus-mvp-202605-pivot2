@@ -84,6 +84,15 @@ func validateKbFiles(kbFiles []string, kbDir string) error {
 	if err != nil {
 		return fmt.Errorf("profile: kb dir %q non risolvibile: %w", kbDir, err)
 	}
+	// Bug #002 fix (.pipeline/bugs/kb-symlink-escape.md): risolve kbDir
+	// dietro eventuali symlink (la KB-ispettore al root del repo È un
+	// symlink legittimo → docs/.../KB-ispettore). Confronto post-resolve.
+	realKb, err := filepath.EvalSymlinks(absKb)
+	if err != nil {
+		// Se kbDir non esiste affatto, fallback su absKb (l'errore di
+		// "non esiste" emerge poi sui singoli file).
+		realKb = absKb
+	}
 	for _, rel := range kbFiles {
 		if strings.TrimSpace(rel) == "" {
 			return errors.New("profile: kb_files contiene voce vuota")
@@ -93,13 +102,25 @@ func validateKbFiles(kbFiles []string, kbDir string) error {
 		if err != nil {
 			return fmt.Errorf("profile: kb_file %q non risolvibile: %w", rel, err)
 		}
-		// NFR-6: path traversal protetto
+		// NFR-6: path traversal lessicale (defense in depth).
 		if !strings.HasPrefix(absFull, absKb+string(os.PathSeparator)) && absFull != absKb {
 			return fmt.Errorf("profile: kb_file %q esce dalla cartella KB-ispettore", rel)
 		}
+		// Esistenza (segue symlink).
 		if _, err := os.Stat(absFull); err != nil {
 			// Path relativo nel messaggio per uniformità coi feature scenari (NFR-4 user-facing).
 			return fmt.Errorf("profile: kb_file %q non esiste in ./KB-ispettore/", rel)
+		}
+		// Bug #002 fix: risolve symlink sul candidato e verifica che il
+		// path REALE rimanga dentro la kbDir reale. Senza questo check, un
+		// symlink dentro la KB potrebbe puntare a file privati esterni e
+		// iniettarne il contenuto nel prompt LLM (privacy / data leak).
+		realFull, err := filepath.EvalSymlinks(absFull)
+		if err != nil {
+			return fmt.Errorf("profile: kb_file %q non risolvibile via symlink: %w", rel, err)
+		}
+		if !strings.HasPrefix(realFull, realKb+string(os.PathSeparator)) && realFull != realKb {
+			return fmt.Errorf("profile: kb_file %q è un symlink che esce dalla cartella KB-ispettore (real path %q outside %q)", rel, realFull, realKb)
 		}
 	}
 	return nil

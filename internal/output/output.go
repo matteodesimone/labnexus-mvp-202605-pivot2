@@ -13,16 +13,23 @@ import (
 )
 
 // Frontmatter sono i metadati YAML scritti in cima all'output (FR-9).
+//
+// ProfileDefaults sono chiavi/valori dichiarati dal profilo via
+// `output.frontmatter_default`. Vengono mergeati nel frontmatter renderizzato
+// dopo le chiavi engine-generated: in caso di collisione **vince l'engine**
+// (l'engine sa il valore effettivo runtime — modello, provider, data, durata).
+// Vedi bugfix `.pipeline/bugs/frontmatter-default-non-applicato.md` (todo #006).
 type Frontmatter struct {
-	Profilo          string   `yaml:"profilo"`
-	Modello          string   `yaml:"modello"`
-	Provider         string   `yaml:"provider"`
-	DataEsecuzione   string   `yaml:"data_esecuzione"`
-	DurataSecondi    float64  `yaml:"durata_secondi"`
-	TokenStimati     int      `yaml:"token_stimati"`
-	FileInput        []string `yaml:"file_input"`
-	Stato            string   `yaml:"stato,omitempty"`
-	ValutazioneDenis string   `yaml:"valutazione_denis,omitempty"`
+	Profilo          string            `yaml:"profilo"`
+	Modello          string            `yaml:"modello"`
+	Provider         string            `yaml:"provider"`
+	DataEsecuzione   string            `yaml:"data_esecuzione"`
+	DurataSecondi    float64           `yaml:"durata_secondi"`
+	TokenStimati     int               `yaml:"token_stimati"`
+	FileInput        []string          `yaml:"file_input"`
+	Stato            string            `yaml:"stato,omitempty"`
+	ValutazioneDenis string            `yaml:"valutazione_denis,omitempty"`
+	ProfileDefaults  map[string]string `yaml:"-"`
 }
 
 // Write scrive un file markdown in outputDir con il pattern:
@@ -61,6 +68,17 @@ func render(fm *Frontmatter, body string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("output: marshal frontmatter: %w", err)
 	}
+	// Bug #006 fix: merge dei default del profilo. Per ogni chiave in
+	// ProfileDefaults, se NON è già presente nelle chiavi top-level del
+	// frontmatter engine-generated, aggiunge in coda "key: value\n". Le
+	// chiavi engine vincono in caso di collisione (l'engine conosce i
+	// valori effettivi runtime).
+	if len(fm.ProfileDefaults) > 0 {
+		header, err = mergeFrontmatterDefaults(header, fm.ProfileDefaults)
+		if err != nil {
+			return "", fmt.Errorf("output: merge frontmatter defaults: %w", err)
+		}
+	}
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.Write(header)
@@ -70,6 +88,52 @@ func render(fm *Frontmatter, body string) (string, error) {
 		b.WriteString("\n")
 	}
 	return b.String(), nil
+}
+
+// reTopLevelKey matcha le chiavi top-level di un blocco YAML: linea che
+// inizia con una lettera/underscore (non spazio, non #, non -) seguita da
+// ":". Usato per scoprire quali chiavi sono già presenti nell'header
+// engine-generated.
+var reTopLevelKey = regexp.MustCompile(`(?m)^([A-Za-z_][A-Za-z0-9_]*)\s*:`)
+
+// mergeFrontmatterDefaults aggiunge le chiavi di `defaults` in coda al
+// blocco YAML `header`, ma SOLO se non già presenti come chiave top-level.
+// L'ordine di aggiunta è stabile (sort delle chiavi defaults).
+//
+// Ritorna nuovo header bytes; non modifica l'input.
+func mergeFrontmatterDefaults(header []byte, defaults map[string]string) ([]byte, error) {
+	existing := map[string]bool{}
+	for _, m := range reTopLevelKey.FindAllSubmatch(header, -1) {
+		existing[string(m[1])] = true
+	}
+	missing := make([]string, 0, len(defaults))
+	for k := range defaults {
+		if !existing[k] {
+			missing = append(missing, k)
+		}
+	}
+	if len(missing) == 0 {
+		return header, nil
+	}
+	// Sort per stabilità output.
+	sortStringSlice(missing)
+	out := make([]byte, 0, len(header)+len(missing)*40)
+	out = append(out, header...)
+	if len(out) > 0 && out[len(out)-1] != '\n' {
+		out = append(out, '\n')
+	}
+	for _, k := range missing {
+		out = append(out, []byte(fmt.Sprintf("%s: %s\n", k, defaults[k]))...)
+	}
+	return out, nil
+}
+
+func sortStringSlice(s []string) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j-1] > s[j]; j-- {
+			s[j-1], s[j] = s[j], s[j-1]
+		}
+	}
 }
 
 var nonSlugRe = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)

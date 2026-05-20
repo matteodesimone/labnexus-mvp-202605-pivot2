@@ -1484,7 +1484,16 @@ func installFromProject(c context.Context, name, cannedBody string) (context.Con
 		return c, fmt.Errorf("labnexus validate %s ha fallito contro la KB reale: %v\n%s", name, err, string(out))
 	}
 	// Stub minimal in tmp profiles dir per il successivo `run` (KB tmp ha solo CLAUDE.md).
-	if err := s.writeProfile(name, minimalProfileYAML(name)); err != nil {
+	// Bug #006 fix: include `output.frontmatter_default` per esercitare il merge
+	// dell'engine (vedi internal/output/output.go::mergeFrontmatterDefaults).
+	yaml := minimalProfileYAML(name)
+	if defaults, ok := fetta2ExpectedDefaults[name]; ok {
+		yaml += "\noutput:\n  frontmatter_default:\n"
+		for k, v := range defaults {
+			yaml += fmt.Sprintf("    %s: %q\n", k, v)
+		}
+	}
+	if err := s.writeProfile(name, yaml); err != nil {
 		return c, err
 	}
 	s.registerSpecialProfile(name)
@@ -1820,19 +1829,19 @@ func bodyCitaMetodiAssociati(c context.Context) (context.Context, error) {
 var fetta2ExpectedDefaults = map[string]map[string]string{
 	"review-pack": {
 		"tipo":             "management_review_pack",
-		"stato":            "bozza_da_validare_qm",
+		"stato_qm":         "bozza_da_validare_qm",
 		"profilo_labnexus": "review-pack",
 		"locale":           "true",
 	},
 	"audit-checklist": {
 		"tipo":             "audit_checklist",
-		"stato":            "bozza_da_validare_qm",
+		"stato_qm":         "bozza_da_validare_qm",
 		"profilo_labnexus": "audit-checklist",
 		"locale":           "true",
 	},
 	"equipment-alert": {
 		"tipo":             "equipment_alert",
-		"stato":            "bozza_da_validare_qm",
+		"stato_qm":         "bozza_da_validare_qm",
 		"profilo_labnexus": "equipment-alert",
 		"locale":           "true",
 	},

@@ -29,6 +29,14 @@ type Profile struct {
 	Temperature   float64  `yaml:"temperature,omitempty"`
 	MaxTokens     int      `yaml:"max_tokens,omitempty"`
 	ContextWindow int      `yaml:"context_window,omitempty"`
+	Output        Output   `yaml:"output,omitempty"`
+}
+
+// Output configura come l'engine scrive l'output del profilo. Bug #006:
+// FrontmatterDefault sono chiavi/valori che vanno mergeati nel frontmatter
+// dell'output (le chiavi engine-generated vincono in caso di collisione).
+type Output struct {
+	FrontmatterDefault map[string]string `yaml:"frontmatter_default,omitempty"`
 }
 
 // Load legge e parsa un file di profilo dal path indicato.

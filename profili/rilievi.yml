@@ -43,6 +43,6 @@ input:
 output:
   frontmatter_default:
     tipo: capa_pack
-    stato: bozza_da_validare_qm
+    stato_qm: bozza_da_validare_qm
     profilo_labnexus: rilievi
     locale: true

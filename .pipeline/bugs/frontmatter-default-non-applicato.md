@@ -1,11 +1,14 @@
 ---
 slug: frontmatter-default-non-applicato
 severity: MEDIUM
-status: open
+status: fixed
 opened_at: 2026-05-20
+fixed_at: 2026-05-20
 opened_by: /v-review loop 1 — unmasked pre-existing failure
 fetta_context: Fetta 2 (capability C/D/E), ma il bug è cross-fetta (anche Fetta 1)
 discovered_via: M4 assertion BDD (rimossa dagli scenari Fetta 2 per rispettare scope plan)
+fix: internal/profile/profile.go aggiunta struct Output con FrontmatterDefault map[string]string. internal/output/output.go::render ora chiama mergeFrontmatterDefaults che appende le chiavi non-presenti al blocco YAML engine-generated (collision rule = engine vince). internal/runner/runner.go popola ProfileDefaults da p.Output.FrontmatterDefault. Tutti i 5 profili (revisione, rilievi, review-pack, audit-checklist, equipment-alert) rinominato `stato` → `stato_qm` per evitare collisione semantica con il `stato` runtime engine (completato/timeout). M4 assertion re-abilitata nei 3 scenari Fetta 2.
+test: internal/output/output_test.go::TestWrite_AppliesProfileDefaults (+ TestWrite_EngineKeysWinOverProfileDefaults + TestWrite_NoProfileDefaultsLeavesFrontmatterUnchanged); BDD features/profili-fetta2.feature ri-include 3 step "il frontmatter contiene i default del profilo <X>"
 ---
 
 # Bug — `output.frontmatter_default` del profilo non è scritto nell'output

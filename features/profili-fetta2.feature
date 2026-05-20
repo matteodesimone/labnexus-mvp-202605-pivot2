@@ -21,6 +21,7 @@ Funzionalità: Profili C/D/E (review-pack, audit-checklist, equipment-alert) —
     E il file di output contiene il frontmatter YAML completo
     E il body contiene 13 sezioni numerate del Management Review Pack
     E il body contiene una sintesi iniziale coerente con le decisioni finali del Pack
+    E il frontmatter contiene i default del profilo "review-pack"
     E il giudizio formale qualitativo è demandato a Denis (Livello 2, fuori BDD)
 
   # --- FR-16: Capability D — audit-checklist (15–30 domande raggruppate per area) ---
@@ -34,6 +35,7 @@ Funzionalità: Profili C/D/E (review-pack, audit-checklist, equipment-alert) —
     E il body contiene tra 15 e 30 domande d'audit raggruppate per area
     E il body cita campioni documentali da richiedere per ciascuna area
     E il body riporta un livello di rischio per ciascuna area
+    E il frontmatter contiene i default del profilo "audit-checklist"
     E il giudizio formale qualitativo è demandato a Denis (Livello 2, fuori BDD)
 
   # --- FR-17: Capability E — equipment-alert (5 sezioni del template + metodi specifici) ---
@@ -47,4 +49,5 @@ Funzionalità: Profili C/D/E (review-pack, audit-checklist, equipment-alert) —
     E il body contiene le 5 sezioni del template Equipment Alert
     E il body cita i metodi di prova specifici associati all'apparecchiatura
     E il body include un ragionamento causale tra stato apparecchiatura e impatto metodi
+    E il frontmatter contiene i default del profilo "equipment-alert"
     E il giudizio formale qualitativo è demandato a Denis (Livello 2, fuori BDD)

@@ -37,6 +37,6 @@ input:
 output:
   frontmatter_default:
     tipo: equipment_alert
-    stato: bozza_da_validare_qm
+    stato_qm: bozza_da_validare_qm
     profilo_labnexus: equipment-alert
     locale: true

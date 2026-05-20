@@ -45,6 +45,6 @@ input:
 output:
   frontmatter_default:
     tipo: bozza_revisione
-    stato: bozza_da_validare_qm
+    stato_qm: bozza_da_validare_qm
     profilo_labnexus: revisione
     locale: true

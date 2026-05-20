@@ -1,7 +1,7 @@
 ---
 id: 006
 priority: P2
-status: ready
+status: done
 source: bug
 created: 2026-05-20
 file: internal/profile/profile.go, internal/output/output.go

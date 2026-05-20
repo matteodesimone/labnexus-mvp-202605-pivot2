@@ -75,3 +75,95 @@ func TestWrite_FrontmatterContainsAllFields(t *testing.T) {
 		}
 	}
 }
+
+// --- Bug frontmatter-default-non-applicato (cross-fetta, P2 todo #006) ---
+// I profili dichiarano output.frontmatter_default con chiavi/valori che
+// devono comparire nel frontmatter dell'output (es. tipo:
+// management_review_pack, stato: bozza_da_validare_qm, profilo_labnexus,
+// locale). L'engine deve merge-arli al frontmatter generato, con precedenza
+// alle chiavi engine-generated in caso di collisione.
+
+func TestWrite_AppliesProfileDefaults(t *testing.T) {
+	dir := t.TempDir()
+	fm := &output.Frontmatter{
+		Profilo:        "review-pack",
+		Modello:        "qwen3.6",
+		Provider:       "ollama",
+		DataEsecuzione: "2026-05-20T10:00:00+02:00",
+		ProfileDefaults: map[string]string{
+			"tipo":             "management_review_pack",
+			"stato":            "bozza_da_validare_qm",
+			"profilo_labnexus": "review-pack",
+			"locale":           "true",
+		},
+	}
+	path, err := output.Write(dir, fm, "body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	content, _ := os.ReadFile(path)
+	s := string(content)
+	for _, want := range []string{
+		"tipo: management_review_pack",
+		"profilo_labnexus: review-pack",
+		"locale: true",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("default mancante %q in:\n%s", want, s)
+		}
+	}
+}
+
+func TestWrite_EngineKeysWinOverProfileDefaults(t *testing.T) {
+	// Se il profilo dichiarasse "modello: qwen-default" come default, la
+	// chiave engine-generated `modello: qwen3.6` deve vincere (l'engine sa
+	// che modello ha effettivamente chiamato).
+	dir := t.TempDir()
+	fm := &output.Frontmatter{
+		Profilo:        "review-pack",
+		Modello:        "qwen3.6",
+		Provider:       "ollama",
+		DataEsecuzione: "2026-05-20T10:00:00+02:00",
+		ProfileDefaults: map[string]string{
+			"modello":          "qwen-default-from-profile", // collision con engine
+			"tipo":             "management_review_pack",
+			"profilo_labnexus": "review-pack",
+		},
+	}
+	path, err := output.Write(dir, fm, "body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	content, _ := os.ReadFile(path)
+	s := string(content)
+	if !strings.Contains(s, "modello: qwen3.6") {
+		t.Errorf("engine modello deve vincere, got:\n%s", s)
+	}
+	if strings.Contains(s, "qwen-default-from-profile") {
+		t.Errorf("profile default modello NON deve sovrascrivere engine, got:\n%s", s)
+	}
+	// Le altre chiavi non-collidenti restano.
+	if !strings.Contains(s, "tipo: management_review_pack") {
+		t.Errorf("tipo default deve essere presente, got:\n%s", s)
+	}
+}
+
+func TestWrite_NoProfileDefaultsLeavesFrontmatterUnchanged(t *testing.T) {
+	// Backwards-compat: senza ProfileDefaults, comportamento esistente.
+	dir := t.TempDir()
+	fm := &output.Frontmatter{
+		Profilo:        "revisione",
+		Modello:        "qwen3.6",
+		Provider:       "ollama",
+		DataEsecuzione: "2026-05-20T10:00:00+02:00",
+	}
+	path, err := output.Write(dir, fm, "body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	content, _ := os.ReadFile(path)
+	s := string(content)
+	if !strings.Contains(s, "profilo: revisione") {
+		t.Errorf("frontmatter standard intatto, got:\n%s", s)
+	}
+}

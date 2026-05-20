@@ -214,14 +214,15 @@ func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, pars
 		fileNames[i] = f.Name
 	}
 	fm := &output.Frontmatter{
-		Profilo:        p.Profilo,
-		Modello:        p.Modello,
-		Provider:       prov.Name(),
-		DataEsecuzione: started.Format(time.RFC3339),
-		DurataSecondi:  duration.Seconds(),
-		TokenStimati:   check.Tokens,
-		FileInput:      fileNames,
-		Stato:          stato,
+		Profilo:         p.Profilo,
+		Modello:         p.Modello,
+		Provider:        prov.Name(),
+		DataEsecuzione:  started.Format(time.RFC3339),
+		DurataSecondi:   duration.Seconds(),
+		TokenStimati:    check.Tokens,
+		FileInput:       fileNames,
+		Stato:           stato,
+		ProfileDefaults: p.Output.FrontmatterDefault,
 	}
 	outPath, err := output.Write(cfg.OutputDir, fm, body)
 	if err != nil {

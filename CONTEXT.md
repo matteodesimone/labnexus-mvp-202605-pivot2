@@ -25,8 +25,8 @@ internal/
   runlog/            # logic: log per step + TTY-aware progress (FR-8, NFR-4)
   runner/            # logic: orchestratore Pipeline stages
   tui/               # presentation: huh-based sequential flow cross-platform (FR-10)
-features/            # godog BDD acceptance (6 feature files + step impl)
-profili/             # YAML delle capability (revisione, rilievi)
+features/            # godog BDD acceptance (7 feature files + step impl)
+profili/             # YAML delle capability (revisione, rilievi, review-pack, audit-checklist, equipment-alert)
 KB-ispettore/        # symlink alla KB scritta da Denis (system context, NON modificato da noi)
 scripts/             # build-mac.sh, build-linux.sh, build-zip.sh
 .pipeline/           # spec, plan, fette, state.json, test-data, standards

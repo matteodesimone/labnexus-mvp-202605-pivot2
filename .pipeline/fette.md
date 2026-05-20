@@ -6,7 +6,7 @@
 | # | Nome | Gettoni | Feat coperti | Cosa funziona alla fine | Stato |
 |---|---|---|---|---|---|
 | 1 | Scooter — motore + shakedown | 6 | `feat-001` + `feat-002` + `feat-003` | L'utente esegue `labnexus run --profile {revisione, rilievi} ...` end-to-end. Il motore è validato contro entrambi i golden file (Test 1 PG_RISK_LAB, Test 2 ACIAA A1). | **completata 2026-05-19** + **stabilizzata 2026-05-19 sera** (6 bugfix + UX progress, smoke test reale Test 1 = 3597s output integro). Bundle in `dist/labnexus-sprint1-darwin-arm64/labnexus.app`. L2 Denis fuori CI quando ci sono i materiali. |
-| 2 | 3 capability nuove a rischio basso/medio | 3 | `feat-004` + `feat-005` + `feat-006` | Disponibili: `review-pack`, `audit-checklist`, `equipment-alert`. Denis può valutarle. | pianificata |
+| 2 | 3 capability nuove a rischio basso/medio | 3 | `feat-004` + `feat-005` + `feat-006` | Disponibili: `review-pack`, `audit-checklist`, `equipment-alert`. Denis può valutarle. | **deployata 2026-05-20** (zip `dist/labnexus-sprint1-darwin-arm64.zip` ricostruito con 5 profili, BDD 12 unit + 3 scenari verdi, review 2 loop PASS WITH NOTES). **L2 Denis fuori pipeline** = gate di chiusura formale Fetta 2. Bug engine `frontmatter-default-non-applicato` filato (cross-fetta, MEDIUM). |
 | 3 | 2 capability rischiose + prompt meta | 3 | `feat-007` + `feat-008` + `feat-meta` | Disponibili: `competence-gap`, `pt-analysis`. Inoltre `meta-prompt-genera-profilo.md` consente a Denis di esplorare nuove capability in autonomia. | pianificata |
 
 **Totale**: 6 + 3 + 3 = 12 gettoni di sviluppo pipeline.

@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/cucumber/godog"
@@ -212,6 +214,23 @@ func registerSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^non sono necessari \.app bundle né operazioni Gatekeeper-equivalenti$`, noopStep)
 	ctx.Step(`^l'esecuzione parte direttamente, nessuna TUI viene aperta$`, godogPending)
 	ctx.Step(`^exit code e log sono gli stessi su darwin/arm64 e linux/amd64$`, godogPending)
+
+	// --- Fetta 2: profili C/D/E (review-pack, audit-checklist, equipment-alert, FR-15/16/17) ---
+	ctx.Step(`^(?:che )?il profilo "review-pack" è installato dal file di progetto$`, installReviewPack)
+	ctx.Step(`^(?:che )?il profilo "audit-checklist" è installato dal file di progetto$`, installAuditChecklist)
+	ctx.Step(`^(?:che )?il profilo "equipment-alert" è installato dal file di progetto$`, installEquipmentAlert)
+	ctx.Step(`^(?:che )?la cartella di input contiene il pacchetto sintetico anno-2025 per Management Review Pack$`, useReviewPackInput)
+	ctx.Step(`^(?:che )?la cartella di input contiene il risk-register sintetico \(18 voci\) e lo scope d'audit$`, useAuditChecklistInput)
+	ctx.Step(`^(?:che )?la cartella di input contiene la scheda PMT sintetica e la descrizione evento taratura$`, useEquipmentAlertInput)
+	ctx.Step(`^il body contiene 13 sezioni numerate del Management Review Pack$`, bodyContiene13Sezioni)
+	ctx.Step(`^il body contiene una sintesi iniziale coerente con le decisioni finali del Pack$`, bodyContieneSintesiInizialeCoerente)
+	ctx.Step(`^il body contiene tra 15 e 30 domande d'audit raggruppate per area$`, bodyContieneNDomandeRaggruppate)
+	ctx.Step(`^il body cita campioni documentali da richiedere per ciascuna area$`, bodyCitaCampioniDocumentali)
+	ctx.Step(`^il body riporta un livello di rischio per ciascuna area$`, bodyRiportaLivelloRischioPerArea)
+	ctx.Step(`^il body contiene le 5 sezioni del template Equipment Alert$`, bodyContiene5SezioniEquipmentAlert)
+	ctx.Step(`^il body cita i metodi di prova specifici associati all'apparecchiatura$`, bodyCitaMetodiAssociati)
+	ctx.Step(`^il body include un ragionamento causale tra stato apparecchiatura e impatto metodi$`, bodyRagionamentoCausale)
+	ctx.Step(`^il frontmatter contiene i default del profilo "([^"]+)"$`, fmContieneDefaultDelProfilo)
 }
 
 // ============================================================
@@ -1435,4 +1454,590 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// ============================================================
+// Fetta 2 — profili C/D/E (review-pack, audit-checklist, equipment-alert)
+// FR-15/16/17 — Pattern L1 strutturale via fake Ollama con output canned.
+// La validazione qualitativa (L2 Denis) è fuori BDD per design (NFR-8).
+// ============================================================
+
+// installFromProject verifica che `profili/<name>.yml` esista nel repo,
+// eseguie `labnexus validate <name>` contro il profilo REALE e la KB reale
+// (gate Fetta 2 — chiude il finding HIGH "real profiles not validated by BDD"),
+// poi scrive uno stub minimal in s.profiliDir per il `run` e configura fake Ollama
+// col contenuto canned dato.
+func installFromProject(c context.Context, name, cannedBody string) (context.Context, error) {
+	s := getState(c)
+	projectProfile := filepath.Join(repoRoot, "profili", name+".yml")
+	if _, err := os.Stat(projectProfile); err != nil {
+		return c, fmt.Errorf("profilo di progetto non ancora implementato: %s mancante. Crearlo in /v-implement.", projectProfile)
+	}
+	// FR-3 schema validation contro KB reale (loop 1 review fix).
+	projectProfiliDir := filepath.Join(repoRoot, "profili")
+	projectKbDir := filepath.Join(repoRoot, "docs", "piano_iniziale", "materiali-dominio", "KB-ispettore")
+	if _, err := os.Stat(projectKbDir); err != nil {
+		return c, fmt.Errorf("KB-ispettore di progetto non trovata: %s", projectKbDir)
+	}
+	validateCmd := exec.Command(binaryPath, "validate", name, "--profiles-dir", projectProfiliDir, "--kb-dir", projectKbDir)
+	if out, err := validateCmd.CombinedOutput(); err != nil {
+		return c, fmt.Errorf("labnexus validate %s ha fallito contro la KB reale: %v\n%s", name, err, string(out))
+	}
+	// Stub minimal in tmp profiles dir per il successivo `run` (KB tmp ha solo CLAUDE.md).
+	if err := s.writeProfile(name, minimalProfileYAML(name)); err != nil {
+		return c, err
+	}
+	s.registerSpecialProfile(name)
+	s.startFakeOllama(cannedBody)
+	return c, nil
+}
+
+func installReviewPack(c context.Context) (context.Context, error) {
+	return installFromProject(c, "review-pack", cannedReviewPackBody())
+}
+
+func installAuditChecklist(c context.Context) (context.Context, error) {
+	return installFromProject(c, "audit-checklist", cannedAuditChecklistBody())
+}
+
+func installEquipmentAlert(c context.Context) (context.Context, error) {
+	return installFromProject(c, "equipment-alert", cannedEquipmentAlertBody())
+}
+
+// useFixtureDir punta s.defaultInputDir alla cartella fixture di scenario
+// (sotto .pipeline/test-data/scenarios/). Fallisce se la fixture non esiste.
+func useFixtureDir(c context.Context, relPath string) (context.Context, error) {
+	s := getState(c)
+	abs := filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios", relPath)
+	fi, err := os.Stat(abs)
+	if err != nil || !fi.IsDir() {
+		return c, fmt.Errorf("fixture mancante o non è una cartella: %s", abs)
+	}
+	s.defaultInputDir = abs
+	return c, nil
+}
+
+func useReviewPackInput(c context.Context) (context.Context, error) {
+	return useFixtureDir(c, filepath.Join("review-pack", "anno-2025-sintetico"))
+}
+
+func useAuditChecklistInput(c context.Context) (context.Context, error) {
+	return useFixtureDir(c, filepath.Join("audit-checklist", "risk-register-sintetico"))
+}
+
+func useEquipmentAlertInput(c context.Context) (context.Context, error) {
+	return useFixtureDir(c, filepath.Join("equipment-alert", "scheda-pmt-sintetica"))
+}
+
+// --- assertions strutturali L1 ---
+// Le funzioni di analisi pure (count*, extract*, has*) sono estratte come helper
+// per essere coperte da unit test in features/assertions_fetta2_test.go.
+
+var reSezioneNumerata = regexp.MustCompile(`(?m)^## \d+\.`)
+var reSezioneNumeroEstratto = regexp.MustCompile(`(?m)^## (\d+)\.`)
+
+func countNumberedSections(body string) int {
+	return len(reSezioneNumerata.FindAllString(body, -1))
+}
+
+// extractNumberedSectionSeq estrae la sequenza dei numeri delle sezioni `## N.`
+// nell'ordine in cui appaiono nel body, SENZA deduplicare (per poter rilevare
+// duplicati nel check di sequenza).
+func extractNumberedSectionSeq(body string) []int {
+	out := []int{}
+	for _, m := range reSezioneNumeroEstratto.FindAllStringSubmatch(body, -1) {
+		var n int
+		fmt.Sscanf(m[1], "%d", &n)
+		out = append(out, n)
+	}
+	return out
+}
+
+// hasExactNumberedSectionSequence: review loop 2 fix — verifica che le sezioni
+// numerate siano ESATTAMENTE la sequenza 1, 2, …, N nell'ordine (no
+// duplicati, no gap, no out-of-order). Catena di check:
+//   - len(seq) == n (no duplicati né gap)
+//   - seq[i] == i+1 per ogni i (no out-of-order)
+func hasExactNumberedSectionSequence(body string, n int) error {
+	seq := extractNumberedSectionSeq(body)
+	if len(seq) != n {
+		return fmt.Errorf("attese %d sezioni numerate, trovate %d (sequenza grezza: %v) — possibili duplicati o gap", n, len(seq), seq)
+	}
+	for i, v := range seq {
+		if v != i+1 {
+			return fmt.Errorf("sequenza sezioni attesa 1..%d, trovata %v (alla posizione %d c'è %d invece di %d)", n, seq, i+1, v, i+1)
+		}
+	}
+	return nil
+}
+
+func bodyContiene13Sezioni(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	if n := countNumberedSections(content); n != 13 {
+		return c, fmt.Errorf("atteso esattamente 13 sezioni numerate (## N.), trovate %d", n)
+	}
+	// Review loop 2 fix: verifica che siano ESATTAMENTE 1..13 nell'ordine.
+	return c, hasExactNumberedSectionSequence(content, 13)
+}
+
+// reSezione13Pack: M1 fix — verifica che la sezione "## 13." esista
+// (proxy strutturale per la coerenza sintesi/decisioni; semantica è L2 di Denis).
+var reSezione13Pack = regexp.MustCompile(`(?m)^## 13\.`)
+
+func hasSintesiInizialeECoerenza(body string) error {
+	lower := strings.ToLower(body)
+	if !strings.Contains(lower, "sintesi iniziale") {
+		return fmt.Errorf("body privo di sezione 'sintesi iniziale'")
+	}
+	if !strings.Contains(lower, "decisioni") {
+		return fmt.Errorf("body non cita le 'decisioni' (sezione 13 del Pack)")
+	}
+	if !reSezione13Pack.MatchString(body) {
+		return fmt.Errorf("body privo di sezione '## 13.' (l'ancora strutturale delle decisioni del Pack)")
+	}
+	return nil
+}
+
+func bodyContieneSintesiInizialeCoerente(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	return c, hasSintesiInizialeECoerenza(content)
+}
+
+var reDomandaNumerata = regexp.MustCompile(`(?m)^\d+\.\s`)
+var reAreaHeading = regexp.MustCompile(`(?m)^### Area`)
+
+func countNumberedQuestions(body string) int {
+	return len(reDomandaNumerata.FindAllString(body, -1))
+}
+
+func countAreaHeadings(body string) int {
+	return len(reAreaHeading.FindAllString(body, -1))
+}
+
+func bodyContieneNDomandeRaggruppate(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	domande := countNumberedQuestions(content)
+	aree := countAreaHeadings(content)
+	if domande < 15 || domande > 30 {
+		return c, fmt.Errorf("domande d'audit attese tra 15 e 30, trovate %d", domande)
+	}
+	if aree < 2 {
+		return c, fmt.Errorf("attese almeno 2 aree (### Area ...), trovate %d", aree)
+	}
+	return c, nil
+}
+
+// splitAreaBlocks: M2 fix — restituisce il contenuto di ciascun blocco
+// "### Area ..." nel body. Ogni blocco va dall'heading fino al successivo
+// heading "### " o "## " (o fine body).
+func splitAreaBlocks(body string) []string {
+	// Trova le posizioni di start di ogni "### Area" e di ogni successivo
+	// heading di pari/maggior peso ("### " o "## ").
+	areaStarts := reAreaHeading.FindAllStringIndex(body, -1)
+	reAnyHeading := regexp.MustCompile(`(?m)^(?:## |### )`)
+	allHeadings := reAnyHeading.FindAllStringIndex(body, -1)
+	var blocks []string
+	for _, as := range areaStarts {
+		start := as[0]
+		end := len(body)
+		for _, h := range allHeadings {
+			if h[0] > start {
+				end = h[0]
+				break
+			}
+		}
+		blocks = append(blocks, body[start:end])
+	}
+	return blocks
+}
+
+// areaBlockHasCampioniERischio: M2 fix — ogni blocco area deve citare
+// "campioni documentali" + "livello di rischio".
+func areaBlockHasCampioniERischio(block string) error {
+	lower := strings.ToLower(block)
+	if !strings.Contains(lower, "campioni documentali") {
+		return fmt.Errorf("blocco area privo di 'campioni documentali'")
+	}
+	if !strings.Contains(lower, "livello di rischio") {
+		return fmt.Errorf("blocco area privo di 'livello di rischio'")
+	}
+	return nil
+}
+
+func bodyCitaCampioniDocumentali(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	blocks := splitAreaBlocks(content)
+	if len(blocks) == 0 {
+		return c, fmt.Errorf("nessun blocco '### Area' nel body")
+	}
+	for i, b := range blocks {
+		if !strings.Contains(strings.ToLower(b), "campioni documentali") {
+			return c, fmt.Errorf("area #%d non cita 'campioni documentali'", i+1)
+		}
+	}
+	return c, nil
+}
+
+func bodyRiportaLivelloRischioPerArea(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	blocks := splitAreaBlocks(content)
+	if len(blocks) == 0 {
+		return c, fmt.Errorf("nessun blocco '### Area' nel body")
+	}
+	for i, b := range blocks {
+		if !strings.Contains(strings.ToLower(b), "livello di rischio") {
+			return c, fmt.Errorf("area #%d non riporta 'livello di rischio'", i+1)
+		}
+	}
+	return c, nil
+}
+
+var (
+	reAlertSec1 = regexp.MustCompile(`(?mi)^## 1\..*stato`)
+	reAlertSec2 = regexp.MustCompile(`(?mi)^## 2\..*rischio`)
+	reAlertSec3 = regexp.MustCompile(`(?mi)^## 3\..*azion`)
+	// L2 fix — relax sec4 per accettare sinonimi controllati (email | messaggio
+	// | comunicazione | lettera | fornitore) come header della bozza email.
+	reAlertSec4 = regexp.MustCompile(`(?mi)^## 4\..*(email|messaggio|comunicaz|lettera|fornitore)`)
+	reAlertSec5 = regexp.MustCompile(`(?mi)^## 5\..*checklist`)
+)
+
+func hasFiveEquipmentAlertSections(body string) error {
+	if n := countNumberedSections(body); n != 5 {
+		return fmt.Errorf("atteso esattamente 5 sezioni numerate per Equipment Alert, trovate %d", n)
+	}
+	// Review loop 2 fix: sequenza ESATTA 1..5 (no duplicati / gap / disordine).
+	if err := hasExactNumberedSectionSequence(body, 5); err != nil {
+		return err
+	}
+	checks := []struct {
+		name string
+		re   *regexp.Regexp
+	}{
+		{"stato (sez. 1)", reAlertSec1},
+		{"rischio (sez. 2)", reAlertSec2},
+		{"azioni (sez. 3)", reAlertSec3},
+		{"email/comunicazione fornitore (sez. 4)", reAlertSec4},
+		{"checklist (sez. 5)", reAlertSec5},
+	}
+	for _, ck := range checks {
+		if !ck.re.MatchString(body) {
+			return fmt.Errorf("sezione attesa non trovata: %s", ck.name)
+		}
+	}
+	return nil
+}
+
+func bodyContiene5SezioniEquipmentAlert(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	return c, hasFiveEquipmentAlertSections(content)
+}
+
+var rePCMCode = regexp.MustCompile(`PCM-\d+`)
+
+// extractPCMCodes restituisce l'insieme deduplicato dei codici PCM-NN
+// presenti nel testo passato. Usato sia per il body dell'output sia per la
+// scheda fixture (H3 fix).
+func extractPCMCodes(text string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range rePCMCode.FindAllString(text, -1) {
+		out[m] = true
+	}
+	return out
+}
+
+// fixtureAllowedPCMCodes legge la scheda apparecchiatura della fixture
+// equipment-alert e ne estrae l'insieme dei codici PCM ammessi. H3 fix.
+func fixtureAllowedPCMCodes() (map[string]bool, error) {
+	scheda := filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+		"equipment-alert", "scheda-pmt-sintetica", "scheda-apparecchiatura.md")
+	b, err := os.ReadFile(scheda)
+	if err != nil {
+		return nil, fmt.Errorf("fixture scheda apparecchiatura non leggibile: %v", err)
+	}
+	allowed := extractPCMCodes(string(b))
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("fixture scheda apparecchiatura non contiene codici PCM-NN")
+	}
+	return allowed, nil
+}
+
+// checkMetodiOnlyFromSet H3 fix — il body può citare SOLO i metodi che
+// compaiono nella scheda fixture. Almeno un metodo deve essere citato.
+func checkMetodiOnlyFromSet(body string, allowed map[string]bool) error {
+	cited := extractPCMCodes(body)
+	if len(cited) == 0 {
+		return fmt.Errorf("body non cita alcun metodo PCM-NN specifico")
+	}
+	for code := range cited {
+		if !allowed[code] {
+			return fmt.Errorf("metodo %s citato nel body ma NON presente nella scheda fixture (possibile allucinazione)", code)
+		}
+	}
+	return nil
+}
+
+func bodyCitaMetodiAssociati(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	allowed, err := fixtureAllowedPCMCodes()
+	if err != nil {
+		return c, err
+	}
+	return c, checkMetodiOnlyFromSet(content, allowed)
+}
+
+// fetta2ExpectedDefaults: M4 fix — i default attesi nel frontmatter dell'output
+// per ognuna delle 3 capability di Fetta 2 (devono combaciare con
+// output.frontmatter_default del rispettivo profilo YAML).
+var fetta2ExpectedDefaults = map[string]map[string]string{
+	"review-pack": {
+		"tipo":             "management_review_pack",
+		"stato":            "bozza_da_validare_qm",
+		"profilo_labnexus": "review-pack",
+		"locale":           "true",
+	},
+	"audit-checklist": {
+		"tipo":             "audit_checklist",
+		"stato":            "bozza_da_validare_qm",
+		"profilo_labnexus": "audit-checklist",
+		"locale":           "true",
+	},
+	"equipment-alert": {
+		"tipo":             "equipment_alert",
+		"stato":            "bozza_da_validare_qm",
+		"profilo_labnexus": "equipment-alert",
+		"locale":           "true",
+	},
+}
+
+// extractFrontmatter restituisce il blocco fra il primo `---` e il secondo `---`
+// del file di output, oppure stringa vuota se non c'è frontmatter.
+func extractFrontmatter(content string) string {
+	if !strings.HasPrefix(content, "---\n") && !strings.HasPrefix(content, "---\r\n") {
+		return ""
+	}
+	rest := content[4:]
+	if idx := strings.Index(rest, "\n---"); idx >= 0 {
+		return rest[:idx]
+	}
+	return ""
+}
+
+// frontmatterContainsKV verifica che il frontmatter contenga ognuna delle
+// coppie key:value attese (case-sensitive sulla chiave, case-insensitive sul
+// trim del valore). Le voci possono apparire in qualunque ordine; non si
+// pretende esclusività rispetto ad altri campi del frontmatter.
+func frontmatterContainsKV(fm string, expected map[string]string) error {
+	parsed := map[string]string{}
+	for _, line := range strings.Split(fm, "\n") {
+		eq := strings.IndexByte(line, ':')
+		if eq < 0 {
+			continue
+		}
+		k := strings.TrimSpace(line[:eq])
+		v := strings.TrimSpace(line[eq+1:])
+		// Rimuove eventuali quote singole o doppie attorno al valore.
+		v = strings.Trim(v, `"'`)
+		parsed[k] = v
+	}
+	for k, want := range expected {
+		got, ok := parsed[k]
+		if !ok {
+			return fmt.Errorf("frontmatter privo della chiave '%s'", k)
+		}
+		if !strings.EqualFold(got, want) {
+			return fmt.Errorf("frontmatter[%s] = %q, atteso %q", k, got, want)
+		}
+	}
+	return nil
+}
+
+func fmContieneDefaultDelProfilo(c context.Context, profilo string) (context.Context, error) {
+	expected, ok := fetta2ExpectedDefaults[profilo]
+	if !ok {
+		return c, fmt.Errorf("default attesi non definiti per profilo '%s' (aggiungerli a fetta2ExpectedDefaults)", profilo)
+	}
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	fm := extractFrontmatter(content)
+	if fm == "" {
+		return c, fmt.Errorf("output privo di frontmatter YAML")
+	}
+	return c, frontmatterContainsKV(fm, expected)
+}
+
+// reCausalConnective: Unicode word-boundary match per evitare falsi positivi
+// (es. "se" dentro "frase ") e funzionare con lettere accentate italiane
+// (es. "poiché", "perché"). Go `\b` è ASCII-only, quindi usiamo lookaround
+// esplicito via classi Unicode `\p{L}` (lettera). L2 fix di review loop 1.
+var reCausalConnective = regexp.MustCompile(`(?i)(^|[^\p{L}])(poiché|quindi|perché|se|implica)([^\p{L}]|$)`)
+
+func hasCausalConnective(body string) bool {
+	return reCausalConnective.MatchString(body)
+}
+
+func bodyRagionamentoCausale(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	if !hasCausalConnective(content) {
+		return c, fmt.Errorf("body privo di connettivi causali (poiché/quindi/perché/se…/implica)")
+	}
+	return c, nil
+}
+
+// --- contenuti fake Ollama (canned) per le 3 capability ---
+// SYNTHETIC TEST DATA - NOT REAL — review loop 2 LOW fix: i body sottostanti
+// usano pattern realistici (NC-2025-001, PCM-01, T-007, nomi Maria Rossi…)
+// per simulare output L1-validabili, ma sono interamente FITTIZI. Riferimenti
+// completi alla provenienza: `.pipeline/test-data/scenarios/*/README` e
+// `02-project.md` decisione TD-1 (dati sintetici plausibili).
+
+func cannedReviewPackBody() string {
+	return `## Sintesi iniziale del Riesame della Direzione 2025
+
+La presente sintesi iniziale anticipa le 13 sezioni del Management Review Pack ed è coerente con le decisioni finali del Pack (sezione 13).
+
+## 1. Esito del riesame precedente
+Recepite tutte le decisioni del riesame 2024 con verifica di efficacia.
+
+## 2. Modifiche significative al SGQ
+Adeguamento alla revisione RT-08 rev05 + nuova PG-VER per le verifiche intermedie.
+
+## 3. Risorse e personale
+Formazione media 22h/tecnico (target 24h); priorità 2026 sul recupero formativo.
+
+## 4. Apparecchiature e taratura
+NC chiuse: NC-2025-001, NC-2025-005, NC-2025-010. NC in corso: NC-2025-014.
+
+## 5. Audit interni
+3 audit eseguiti nell'anno, 3 NC e 6 osservazioni; tutte le NC chiuse entro 90 giorni.
+
+## 6. Non conformità e azioni correttive
+15 NC totali, 12 chiuse, 3 in corso al 2025-12-31.
+
+## 7. Reclami
+5 reclami: 3 accolti con azione correttiva, 2 non accolti dopo verifica.
+
+## 8. Risultati di confronti interlaboratorio (PT)
+10 circuiti partecipati: 1 questionabile (PCM-09) e 1 non soddisfacente (PCM-08).
+
+## 9. Indicatori di prestazione (KPI)
+6 KPI: 2 stabili, 4 in peggioramento (tempo emissione rapporto, ri-emissioni, PT, formazione).
+
+## 10. Esiti delle valutazioni esterne (ACCREDIA)
+Sorveglianza programmata Q2-2026, nessuna NC ACCREDIA aperta.
+
+## 11. Adeguatezza delle risorse
+Risorse adeguate; priorità su formazione e gestione picchi stagionali.
+
+## 12. Opportunità di miglioramento
+Centralizzazione reclami, automazione doppio controllo unità di misura, DMS per piani verifica.
+
+## 13. Decisioni del Riesame
+Approvato il piano 2026 con priorità su §6.4 (apparecchiature) e §7.7 (reclami), coerentemente con la sintesi iniziale.`
+}
+
+func cannedAuditChecklistBody() string {
+	return `## Checklist d'audit ISO 17025 — §6.4 Apparecchiature
+
+### Area 1: Tarature esterne
+Campioni documentali da richiedere: certificati LAT 2025, criteri di selezione fornitori, registro NC sui certificati.
+Livello di rischio: Alto.
+
+1. Mostra il piano tarature 2025 e il criterio di selezione dei fornitori LAT.
+2. Per quali apparecchiature i certificati rientrati nel 2025 hanno evidenziato NC?
+3. Come si gestisce un certificato di taratura fuori tolleranza? Mostra la procedura.
+4. Mostra il workflow di segregazione fuori-stato per un'apparecchiatura critica.
+5. Esiste una procedura di recovery dei campioni analizzati nel periodo a rischio?
+
+### Area 2: Verifiche intermedie
+Campioni documentali da richiedere: piano verifiche 2025, carte di controllo, evidenze registrazione.
+Livello di rischio: Alto.
+
+6. Quali apparecchiature richiedono verifica intermedia e con quale frequenza?
+7. Mostra l'ultima verifica intermedia eseguita su T-007.
+8. Esiste un reminder automatico per le verifiche?
+9. Come si tratta una verifica intermedia non conforme?
+10. Quali apparecchiature non hanno una carta di controllo dedicata, e perché?
+
+### Area 3: Tracciabilità metrologica
+Campioni documentali da richiedere: report metrologico annuale, audit fornitori taratura.
+Livello di rischio: Medio.
+
+11. Mostra la catena di taratura del termometro di riferimento R-001.
+12. Quando è stato eseguito l'ultimo audit dei fornitori di taratura?
+13. Come si verifica l'accreditamento dei subappaltatori metrologici?
+
+### Area 4: Registrazione e tracciabilità
+Campioni documentali da richiedere: registri verifiche, documentazione DMS, evidenze formazione.
+Livello di rischio: Medio.
+
+14. Mostra il registro centralizzato delle verifiche intermedie 2025.
+15. Esiste evidenza di formazione sul piano verifiche per tutti gli operatori?
+16. Come si gestisce il versioning dei piani di taratura?
+17. Tracciabilità dei campioni misurati con T-007 prima della NC: dove è documentata?
+18. Come si chiude formalmente una NC sull'apparecchiatura, evidenza di efficacia?`
+}
+
+func cannedEquipmentAlertBody() string {
+	return `## 1. Stato attuale dell'apparecchiatura
+
+Termometro **T-007** segregato dal 2025-02-14 a seguito del rientro del certificato LAT con scostamento +1.4 °C nell'intervallo 0–50 °C.
+
+## 2. Rischio tecnico sui metodi associati
+
+L'apparecchiatura è riferimento per i metodi **PCM-01** (conducibilità: compensazione termica a 25 °C), **PCM-04** (COD: sicurezza ambiente) e **PCM-09** (mineralizzazione: riferimento secondario).
+
+Ragionamento causale: poiché PCM-01 usa T-007 per la compensazione termica, uno scostamento sistematico di +1.4 °C nell'intervallo di lavoro implica un errore sistematico positivo sulla conducibilità calcolata. Quindi è necessario il recovery metrologico dei campioni del periodo.
+
+## 3. Azioni proposte
+
+1. Segregazione mantenuta fino a ritaratura conforme.
+2. Recovery campioni PCM-01 nel periodo 2025-01-09 → 2025-02-14.
+3. Richiesta indagine al centro LAT 045.
+
+## 4. Bozza email al fornitore
+
+Oggetto: Richiesta verifica processo di taratura — Certificato LAT 045 del 2025-02-14.
+Corpo: gentile fornitore, allego il certificato in oggetto con evidenza di scostamento fuori criterio interno; chiediamo verifica processo e ri-taratura urgente.
+
+## 5. Checklist al rientro in servizio
+
+- [ ] Nuovo certificato LAT con scostamento ≤ ±0.5 °C su tutto il range.
+- [ ] Verifica intermedia di conferma contro R-001.
+- [ ] Aggiornamento scheda apparecchiatura e re-inserimento in produzione.`
 }

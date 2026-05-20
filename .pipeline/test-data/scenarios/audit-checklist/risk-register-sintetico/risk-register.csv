@@ -1,0 +1,19 @@
+id,area_iso,descrizione_rischio,probabilita,impatto,livello_rischio,owner,trattamento,stato
+R-01,§6.2 Personale,Operatori non aggiornati su revisione RT-08 rev05,Media,Alto,Alto,RTS,Sessione formativa Q1 + verifica competenza,attivo
+R-02,§6.2 Personale,Eccessiva concentrazione di competenza su singolo tecnico (key person risk),Media,Alto,Alto,RTS,Piano di backup competenze + cross-training,attivo
+R-03,§6.4 Apparecchiature,Termometri di lavoro fuori tolleranza non rilevati,Media,Alto,Alto,RTS,Verifica intermedia mensile + carta di controllo,monitorato
+R-04,§6.4 Apparecchiature,Forni con deriva post-manutenzione fornitore,Bassa,Alto,Medio,RTS,Verifica metrologica post-intervento obbligatoria,monitorato
+R-05,§6.4 Apparecchiature,HPLC/GC-MS: contaminazione cross-batch,Bassa,Alto,Medio,RTS,Procedura di pulizia tra batch + bianchi sistemici,monitorato
+R-06,§6.5 Tracciabilità,Catena di taratura interrotta su un parametro critico,Bassa,Alto,Medio,RTS,Audit annuale fornitori taratura + report metrologico,attivo
+R-07,§6.6 Subappaltatori,Subappaltatore privo di accreditamento per metodo,Bassa,Alto,Medio,RTS,Verifica accreditamento annua + clausola contrattuale,attivo
+R-08,§7.1 Riesame richieste,Accettazione campioni non conformi alla matrice del metodo,Media,Medio,Medio,RAQ,Checklist accettazione + double-check operatore,attivo
+R-09,§7.2 Metodi,Validazione incompleta su matrici nuove,Media,Alto,Alto,RTS,Piano validazione triennale + revisione annuale,attivo
+R-10,§7.3 Campionamento,Errori di etichettatura tra prelievo e accettazione,Media,Medio,Medio,RAQ,Etichette QR + doppio controllo,attivo
+R-11,§7.4 Manipolazione campioni,Deterioramento per ritardi in coda di analisi,Bassa,Alto,Medio,RTS,Tempi massimi per matrice + alert calendario,monitorato
+R-12,§7.5 Documentazione tecnica,Versionamento documentazione non univoco,Bassa,Medio,Basso,RAQ,DMS centralizzato + audit semestrale,attivo
+R-13,§7.6 Validità risultati,Carte di controllo non aggiornate,Media,Alto,Alto,RTS,Aggiornamento mensile + verifica trimestrale,monitorato
+R-14,§7.7 Rapporti di prova,Errori di trascrizione unità di misura,Media,Medio,Medio,RAQ,Doppio controllo unità in emissione,attivo
+R-15,§7.8 Reclami,Gestione reclami non centralizzata,Alta,Medio,Alto,RAQ,Workflow centralizzato + KPI tempi chiusura,attivo
+R-16,§7.9 Non conformità,NC non chiuse entro 90 giorni,Media,Medio,Medio,RAQ,KPI di chiusura + escalation a 60 giorni,attivo
+R-17,§8.5 Rischi e opportunità,Mancata analisi cambi normativi,Bassa,Alto,Medio,RAQ,Sorveglianza normativa trimestrale,attivo
+R-18,§8.6 Miglioramento,Azioni di miglioramento non tracciate fino a chiusura,Media,Medio,Medio,RAQ,Registro azioni + verifica efficacia obbligatoria,attivo

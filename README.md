@@ -94,6 +94,6 @@ Vedi `.pipeline/state.json` e `.pipeline/fette.md` per lo stato corrente delle f
 
 | Fetta | Cosa | Gettoni | Stato |
 |---|---|---|---|
-| 1 | Scooter — motore + revisione + rilievi | 6 | in corso |
-| 2 | review-pack + audit-checklist + equipment-alert | 3 | pianificata |
+| 1 | Scooter — motore + revisione + rilievi | 6 | completata e stabilizzata |
+| 2 | review-pack + audit-checklist + equipment-alert | 3 | implementata (in attesa di L2 Denis) |
 | 3 | competence-gap + pt-analysis + prompt meta | 3 | pianificata |

@@ -51,15 +51,22 @@ func TestMain(m *testing.M) {
 		log.Fatalf("build failed: %v\n%s", err, string(out))
 	}
 
-	status := godog.TestSuite{
+	godogStatus := godog.TestSuite{
 		Name:                "labnexus-fetta1",
 		ScenarioInitializer: InitializeScenario,
 		Options:             &godogOpts,
 	}.Run()
-	if status != 0 {
-		fmt.Fprintf(os.Stderr, "godog: %d failures\n", status)
+	if godogStatus != 0 {
+		fmt.Fprintf(os.Stderr, "godog: %d failures\n", godogStatus)
 	}
-	os.Exit(status)
+	// Esegue anche i test Go standard nel pacchetto features (es. unit test
+	// sulle assertion estratte in assertions_fetta2_test.go — review loop 1
+	// H4 fix). Prima questo `m.Run()` mancava e i test venivano saltati.
+	testStatus := m.Run()
+	if godogStatus != 0 {
+		os.Exit(godogStatus)
+	}
+	os.Exit(testStatus)
 }
 
 // InitializeScenario registra hook before/after + tutti gli step.

@@ -1,0 +1,11 @@
+codice_pt,circuito,parametro,metodo,z_score,valutazione,data,note
+PT-2025-01,UNICHIM-241,Conducibilità,PCM-01,-0.4,soddisfacente,2025-02-10,
+PT-2025-02,UNICHIM-241,pH,PCM-02,0.7,soddisfacente,2025-02-10,
+PT-2025-03,LGC-7821,Metalli pesanti Pb,PCM-09,1.9,soddisfacente,2025-04-05,al limite zona di attenzione
+PT-2025-04,LGC-7821,Metalli pesanti Cd,PCM-09,-2.4,questionabile,2025-04-05,aperta azione correttiva PCM-09
+PT-2025-05,FAPAS-CW003,COD,PCM-04,0.3,soddisfacente,2025-06-12,
+PT-2025-06,FAPAS-CW003,BOD5,PCM-05,-0.8,soddisfacente,2025-06-12,
+PT-2025-07,UNICHIM-318,Solidi sospesi,PCM-06,1.1,soddisfacente,2025-09-03,
+PT-2025-08,LGC-7943,IPA su sedimento,PCM-12,0.5,soddisfacente,2025-09-25,
+PT-2025-09,FAPAS-CW012,Tensioattivi,PCM-08,3.2,non soddisfacente,2025-11-05,NC aperta + indagine causale in corso
+PT-2025-10,UNICHIM-352,Cloruri,PCM-03,-0.6,soddisfacente,2025-11-18,

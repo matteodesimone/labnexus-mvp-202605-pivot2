@@ -1,0 +1,6 @@
+codice_reclamo,data_apertura,cliente,oggetto,categoria,esito,giorni_chiusura
+REC-2025-01,2025-03-12,Studio XY,Ritardo emissione rapporto (8 gg vs 5 attesi),tempistiche,accolto con scuse + azione correttiva,15
+REC-2025-02,2025-05-22,Industria Alfa,Discrepanza tra risultato e referto interno cliente,dato analitico,non accolto dopo verifica metrologica,9
+REC-2025-03,2025-07-08,Studio AB,Errore unità di misura nel rapporto (mg/L vs μg/L),trascrizione,accolto + ristampa + azione correttiva,4
+REC-2025-04,2025-09-15,Comune di Esempio,Mancata firma digitale su rapporto,documentazione,accolto + ri-emissione,2
+REC-2025-05,2025-11-04,Industria Beta,Dubbio su metodo applicato (PCM-04 vs PCM-05),metodo,non accolto dopo chiarimento tecnico documentato,6

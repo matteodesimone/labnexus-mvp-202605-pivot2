@@ -1,0 +1,42 @@
+# Profilo: equipment-alert (Capability E — Equipment Alert per apparecchiatura fuori-stato)
+# Fetta 2 dello Sprint 1 (FR-17). Template di riferimento: CoWork KB sezione 15.3.
+profilo: equipment-alert
+descrizione: Equipment Alert per apparecchiatura fuori-stato — 5 sezioni del template con ragionamento causale stato → impatto sui metodi di prova associati
+
+provider: ollama
+modello: qwen3.6
+
+temperature: 0.9
+max_tokens: 8192
+context_window: 128000
+
+kb_files:
+  - CLAUDE.md
+  - come-pensa-un-ispettore.md
+  - sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md
+  - NC-patterns/come-rispondere-NC-ACCREDIA.md
+
+trigger_prompt: |
+  Sulla base della tua identità di system context, esegui questo compito.
+  Input: scheda apparecchiatura (con metodi di prova associati) + descrizione
+  evento (es. taratura rientrata con NC).
+  Produci un Equipment Alert del CoWork KB sezione 15.3: ESATTAMENTE 5 sezioni
+  numerate "## 1." → "## 5." nell'ordine — Stato attuale, Rischio tecnico sui
+  metodi (cita i codici PCM dalla scheda, ragionamento causale "poiché …
+  quindi …"), Azioni proposte, Bozza email al fornitore, Checklist al rientro.
+  NON inventare metodi non presenti nella scheda. Frontmatter YAML completo.
+
+input:
+  pattern_attesi:
+    - "scheda apparecchiatura (md) con metodi di prova associati"
+    - "descrizione evento (md) — es. certificato di taratura rientrato con NC"
+  istruzioni_se_mancante: |
+    Per l'Equipment Alert servono almeno la scheda apparecchiatura (con i
+    metodi associati esplicitati) e la descrizione dell'evento che la riguarda.
+
+output:
+  frontmatter_default:
+    tipo: equipment_alert
+    stato: bozza_da_validare_qm
+    profilo_labnexus: equipment-alert
+    locale: true

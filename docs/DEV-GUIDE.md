@@ -111,8 +111,8 @@ features/                     # godog BDD
   main_test.go                # TestMain: build binary in tmpdir + scenario hook
   helpers_test.go             # scenarioState, fake server Ollama/EUrouter, subprocess invoke
   *_steps_test.go             # step impl in italiano con (?:che )? prefix per Gherkin
-  *.feature                   # 6 file scenari
-profili/                      # YAML capability shippable (revisione.yml, rilievi.yml)
+  *.feature                   # 7 file scenari
+profili/                      # YAML capability shippable (revisione, rilievi, review-pack, audit-checklist, equipment-alert)
 KB-ispettore                  # symlink → docs/piano_iniziale/materiali-dominio/KB-ispettore
 scripts/                      # build-mac.sh, build-linux.sh, build-zip.sh
 ```

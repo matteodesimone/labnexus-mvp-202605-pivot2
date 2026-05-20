@@ -1,0 +1,13 @@
+codice,descrizione,ultima_taratura,prossima_scadenza,stato,metodi_associati,note
+T-001,Termometro digitale gamma -50/+200,2025-01-15,2026-01-15,in_servizio,PCM-01;PCM-04,verifica intermedia mensile attiva
+T-007,Termometro digitale gamma 0/+100,2025-02-14,2025-08-14,fuori_stato,PCM-01,NC-2025-001 — rientrato fuori tolleranza
+B-012,Bilancia analitica 220g/0.1mg,2025-04-21,2025-10-21,in_servizio,PCM-02;PCM-08,leva sostituita 2025-05; ritarata
+F-003,Forno mufflola 1100°C,2025-08-11,2026-08-11,in_servizio,PCM-06;PCM-07,NC-2025-010 — chiesto certificato post-intervento
+pH-meter-02,pH-meter da banco con sonda combinata,2025-06-02,2025-12-02,in_servizio,PCM-02;PCM-05,verifica intermedia mensile
+HPLC-A,HPLC a fase inversa con UV-DAD,2025-03-30,2026-03-30,in_servizio,PCM-09;PCM-10;PCM-12,
+GC-MS-B,Gascromatografo con spettrometro di massa,2025-05-18,2026-05-18,in_servizio,PCM-12,
+ICP-MS-C,Spettrometro ICP-MS,2025-07-22,2026-07-22,in_servizio,PCM-09,carta di controllo monitorata mensilmente
+C-002,Cappa aspirante chimica,2025-04-04,2025-10-04,in_manutenzione,—,NC-2025-014 — filtri saturi
+A-005,Autoclave per sterilizzazione,2025-02-28,2026-02-28,in_servizio,PCM-15,
+S-009,Stufa a 105°C,2025-09-01,2026-09-01,in_servizio,PCM-06,
+TOC-D,Analizzatore TOC,2025-10-11,2026-10-11,in_servizio,PCM-11,

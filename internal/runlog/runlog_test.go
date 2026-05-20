@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/labnexus/labnexus/internal/runlog"
 )
@@ -35,6 +36,55 @@ func TestLogger_WarnPrefixesWithWarning(t *testing.T) {
 	}
 	if !strings.Contains(out, "attenzione qualcosa") {
 		t.Errorf("Warn should include formatted message, got: %q", out)
+	}
+}
+
+func TestLogger_StreamProgress_NonTTYIsNoOp(t *testing.T) {
+	var buf bytes.Buffer
+	l := &runlog.Logger{Out: &buf, IsTTY: false}
+	l.StreamProgress(142, 23*time.Second)
+	if buf.Len() > 0 {
+		t.Errorf("StreamProgress su non-TTY deve essere no-op, got: %q", buf.String())
+	}
+}
+
+func TestLogger_StreamProgress_TTYRendersTokenCountAndRate(t *testing.T) {
+	var buf bytes.Buffer
+	l := &runlog.Logger{Out: &buf, IsTTY: true}
+	l.StreamProgress(142, 23*time.Second)
+	s := buf.String()
+	if !strings.HasPrefix(s, "\r") {
+		t.Errorf("output deve iniziare con \\r (update in-place), got: %q", s)
+	}
+	if !strings.Contains(s, "142 token") {
+		t.Errorf("output deve contenere '142 token', got: %q", s)
+	}
+	if !strings.Contains(s, "23s") {
+		t.Errorf("output deve contenere '23s' (durata round), got: %q", s)
+	}
+	if !strings.Contains(s, "tok/s") {
+		t.Errorf("output deve contenere 'tok/s' (rate), got: %q", s)
+	}
+}
+
+func TestLogger_StreamEnd_AlwaysEmitsFinalStat(t *testing.T) {
+	for _, tty := range []bool{true, false} {
+		var buf bytes.Buffer
+		l := &runlog.Logger{Out: &buf, IsTTY: tty}
+		l.StreamEnd(500, 60*time.Second)
+		s := buf.String()
+		if !strings.Contains(s, "500 token") {
+			t.Errorf("tty=%v: output deve contenere '500 token', got: %q", tty, s)
+		}
+		if !strings.Contains(s, "completato") {
+			t.Errorf("tty=%v: output deve contenere 'completato', got: %q", tty, s)
+		}
+		if !strings.Contains(s, "tok/s") {
+			t.Errorf("tty=%v: output deve contenere 'tok/s', got: %q", tty, s)
+		}
+		if tty && !strings.HasPrefix(s, "\r") {
+			t.Errorf("tty=true: output deve iniziare con \\r (clear riga), got: %q", s)
+		}
 	}
 }
 

@@ -34,13 +34,18 @@ func Run(profiliDir, preInput string) (*Selection, error) {
 	if err != nil {
 		return nil, err
 	}
+	// cleanPath anche su preInput: drag&drop da Finder sull'icona .app può fornirlo
+	// con quote/spazi (stesso pattern del campo TUI). Senza pulizia, isExistingDir(preInput)
+	// fallisce e la TUI riapre la prompt di input — vanificando il drag&drop.
+	preInput = cleanPath(preInput)
 	sel := &Selection{InputDir: preInput}
 	form := huh.NewForm(huh.NewGroup(buildFormFields(options, preInput, sel)...))
 	if err := form.Run(); err != nil {
 		return nil, fmt.Errorf("tui: %w", err)
 	}
-	sel.InputDir = strings.TrimSpace(sel.InputDir)
-	sel.OutputDir = strings.TrimSpace(sel.OutputDir)
+	// cleanPath rimuove anche eventuali quote da drag&drop Finder
+	sel.InputDir = cleanPath(sel.InputDir)
+	sel.OutputDir = cleanPath(sel.OutputDir)
 	return sel, nil
 }
 
@@ -97,7 +102,20 @@ func isExistingDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
+// cleanPath rimuove spazi, single quote, double quote da inizio e fine.
+// Il drag&drop di una cartella dal Finder al campo TUI tipicamente incolla
+// il path circondato da single quotes E con uno spazio finale (eredità del
+// comportamento Terminal). Senza pulizia, validateExistingDir fallisce con
+// "la cartella '/Users/foo/bar ' non esiste".
+func cleanPath(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, `'"`)
+	s = strings.TrimSpace(s) // eventuali spazi tra quote rimaste
+	return s
+}
+
 func validateExistingDir(s string) error {
+	s = cleanPath(s)
 	if !isExistingDir(s) {
 		return fmt.Errorf("la cartella %q non esiste", s)
 	}
@@ -105,7 +123,8 @@ func validateExistingDir(s string) error {
 }
 
 func validateNonEmpty(s string) error {
-	if strings.TrimSpace(s) == "" {
+	s = cleanPath(s)
+	if s == "" {
 		return errors.New("path richiesto")
 	}
 	// crea la dir se non esiste (idempotent)

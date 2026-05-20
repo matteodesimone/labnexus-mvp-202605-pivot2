@@ -97,6 +97,38 @@ func (l *Logger) EndProgress() {
 	fmt.Fprint(l.Out, "\r"+strings.Repeat(" ", 60)+"\r")
 }
 
+// StreamProgress aggiorna la riga live di progress streaming LLM (TTY only).
+// Formato: "  > 142 token, 23s elapsed (6.1 tok/s)". Su non-TTY è no-op:
+// l'aggiornamento periodico per non-TTY passa per Info (vedi drainStream).
+func (l *Logger) StreamProgress(tokens int, elapsed time.Duration) {
+	if !l.IsTTY || l.Out == nil {
+		return
+	}
+	rate := 0.0
+	if elapsed > 0 {
+		rate = float64(tokens) / elapsed.Seconds()
+	}
+	fmt.Fprintf(l.Out, "\r  > %d token, %s elapsed (%.1f tok/s)     ",
+		tokens, elapsed.Round(time.Second), rate)
+}
+
+// StreamEnd finalizza il progress streaming. Su TTY rimuove la riga in-place,
+// poi stampa una linea di riepilogo "[hh:mm:ss] streaming completato: N token in Xs (R tok/s)".
+func (l *Logger) StreamEnd(tokens int, elapsed time.Duration) {
+	if l.Out == nil {
+		return
+	}
+	if l.IsTTY {
+		fmt.Fprint(l.Out, "\r"+strings.Repeat(" ", 70)+"\r")
+	}
+	rate := 0.0
+	if elapsed > 0 {
+		rate = float64(tokens) / elapsed.Seconds()
+	}
+	fmt.Fprintf(l.Out, "[%s] streaming completato: %d token in %s (%.1f tok/s)\n",
+		time.Now().Format("15:04:05"), tokens, elapsed.Round(time.Second), rate)
+}
+
 func buildBar(pct, width int) string {
 	if pct < 0 {
 		pct = 0

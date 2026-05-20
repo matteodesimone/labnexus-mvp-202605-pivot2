@@ -62,6 +62,25 @@ Comandi accessori:
 
 In Sprint 1 sono validate sull'hardware locale; nuove capability possono essere aggiunte tra sprint via prompt meta (vedi Sprint 2).
 
+## Cosa vedo durante l'esecuzione
+
+Dopo che hai scelto capability, input e output, sul terminale appaiono linee di log come:
+
+```
+[10:32:14] chiamata provider ollama ...
+[10:32:14] attendo risposta dal modello (warmup può richiedere minuti su modelli grandi)...
+[10:32:24] ...ancora in attesa del primo token (10s elapsed)
+[10:32:34] ...ancora in attesa del primo token (20s elapsed)
+[10:32:51] primo token ricevuto (TTFT 37s), generazione in corso...
+  > 142 token, 23s elapsed (6.1 tok/s)        ← aggiornata live
+[10:38:47] streaming completato: 1842 token in 6m33s (4.7 tok/s)
+[10:38:47] output: /Users/denis/Out/2026-05-19_103214_revisione_Test1.md
+```
+
+Le righe `...ancora in attesa` significano che Ollama sta caricando il modello in RAM (warmup): è normale, soprattutto la prima volta dopo l'avvio o se il modello è grande (qwen3.6 36B = 23 GB). Una volta arrivato il primo token, la riga `> X token` si aggiorna in-place ogni mezzo secondo mostrando token cumulati, tempo trascorso e velocità (tok/s).
+
+Se non vedi nessun aggiornamento per più di 2-3 minuti dopo il primo token, c'è davvero un problema (vedi sezione "Quando qualcosa va storto").
+
 ## Come è fatto l'output
 
 Ogni esecuzione produce **un file markdown** in `<output>/<timestamp>_<profilo>_<input>.md`. Inizia con un blocco YAML di metadati:

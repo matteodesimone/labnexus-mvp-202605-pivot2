@@ -85,3 +85,75 @@ func TestErrNonTTY_MessageMentionsAlternative(t *testing.T) {
 		t.Errorf("ErrNonTTY message should mention --profile flag, got: %q", msg)
 	}
 }
+
+// TestCleanPath verifica che il path inserito nella TUI venga normalizzato:
+// rimosso whitespace + quote, gestendo i pattern tipici di drag&drop Finder.
+func TestCleanPath_DragDropFinderPatterns(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"path con trailing space (caso bug CTO)", "/Users/denis/Test1 ", "/Users/denis/Test1"},
+		{"path con single quotes + trailing space (drag&drop Finder)", "'/Users/denis/Test1' ", "/Users/denis/Test1"},
+		{"path con leading + trailing space", "  /Users/denis/Test1  ", "/Users/denis/Test1"},
+		{"path con double quotes", `"/Users/denis/Test1"`, "/Users/denis/Test1"},
+		{"path pulito invariato", "/Users/denis/Test1", "/Users/denis/Test1"},
+		{"empty", "", ""},
+		{"only whitespace", "   ", ""},
+		{"only quotes", "''", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := cleanPath(tc.in)
+			if got != tc.want {
+				t.Errorf("cleanPath(%q) = %q, want %q", tc.in, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestValidateExistingDir_HandlesTrailingSpace verifica che validateExistingDir
+// gestisca path con trailing space (caso bug CTO): la dir esiste, il path ha
+// spazio in fondo (es. da drag&drop), validate deve passare.
+func TestValidateExistingDir_HandlesTrailingSpace(t *testing.T) {
+	d := t.TempDir()
+	// Path con trailing space — pre-fix avrebbe fallito perché os.Stat su
+	// "<d> " (con spazio) ritorna ENOENT.
+	if err := validateExistingDir(d + " "); err != nil {
+		t.Errorf("validateExistingDir deve gestire trailing space, got: %v", err)
+	}
+	if err := validateExistingDir("  " + d + "  "); err != nil {
+		t.Errorf("validateExistingDir deve gestire leading+trailing space, got: %v", err)
+	}
+}
+
+// TestValidateExistingDir_HandlesSingleQuotes verifica che validateExistingDir
+// gestisca path drag&drop con single quotes (pattern Finder/Terminal macOS).
+func TestValidateExistingDir_HandlesSingleQuotes(t *testing.T) {
+	d := t.TempDir()
+	quoted := "'" + d + "' "
+	if err := validateExistingDir(quoted); err != nil {
+		t.Errorf("validateExistingDir deve gestire single-quoted path da drag&drop, got: %v", err)
+	}
+}
+
+// TestRun_PreInputWithTrailingSpaceSkipsInputPrompt verifica che il drag&drop
+// di una cartella sull'icona .app (preInput con quote/spazio) sia riconosciuto
+// come "cartella esistente" e la TUI salti la prompt di input.
+// Pre-fix (M8 review codex): buildFormFields chiamava isExistingDir(preInput) raw,
+// quindi un preInput="'/path/'" con quote falliva → la TUI riapriva la prompt
+// vanificando il drag&drop.
+// Test indiretto: chiamiamo cleanPath sul preInput "quoted" e verifichiamo
+// che il risultato sia una dir esistente.
+func TestCleanPath_PreInputDragDropOnAppIcon(t *testing.T) {
+	d := t.TempDir()
+	preInputQuoted := "'" + d + "' "
+	cleaned := cleanPath(preInputQuoted)
+	if cleaned != d {
+		t.Errorf("cleanPath(%q) = %q, want %q", preInputQuoted, cleaned, d)
+	}
+	if !isExistingDir(cleaned) {
+		t.Errorf("dopo cleanPath il preInput deve essere riconosciuto come dir esistente: %q", cleaned)
+	}
+}

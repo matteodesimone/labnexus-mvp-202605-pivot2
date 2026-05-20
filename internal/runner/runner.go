@@ -260,23 +260,77 @@ func loadKB(kbDir string, files []string) ([]string, error) {
 	return out, nil
 }
 
+// drainStream consuma il canale di StreamEvent del provider mostrando progress
+// all'utente (FR-8 + UX-Sprint1).
+//   - Ticker 10s: mentre non arriva il primo token, stampa "ancora in attesa..."
+//     così l'utente sa che il warmup del modello (qwen3.6 36B può impiegare 1-2 min
+//     al primo caricamento in RAM) è in corso e non è un freeze.
+//   - Ticker 500ms (TTY only): aggiorna in-place "> X token, Ys elapsed (Z tok/s)".
+//   - Ticker 30s (non-TTY only): stampa una linea di stato periodica.
+//   - Al primo token: stampa il TTFT (time-to-first-token) e segna l'inizio della generazione.
+//   - A fine stream: log.StreamEnd con statistica finale.
 func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, string) {
 	var b strings.Builder
 	// Default "interrotto": diventa "completato" solo se riceviamo esplicitamente done:true (EC-8).
 	stato := "interrotto"
-	for ev := range ch {
-		if ev.Err != nil {
-			log.Warn("stream error: %v", ev.Err)
-			break
-		}
-		b.WriteString(ev.Token)
-		if ev.Done {
-			stato = "completato"
-			if ev.NoDoneMarker {
-				log.Warn("stream chiuso senza done marker dal server (output verosimilmente completo, ma il modello non ha emesso il chunk finale done:true — vedi bug eof-post-content-falsamente-interrotto)")
+	started := time.Now()
+	var tokenCount int
+	var firstToken bool
+
+	log.Info("attendo risposta dal modello (warmup può richiedere minuti su modelli grandi)...")
+
+	waitTicker := time.NewTicker(10 * time.Second)
+	defer waitTicker.Stop()
+	progressTicker := time.NewTicker(500 * time.Millisecond)
+	defer progressTicker.Stop()
+	nonTTYTicker := time.NewTicker(30 * time.Second)
+	defer nonTTYTicker.Stop()
+
+	for {
+		select {
+		case <-waitTicker.C:
+			if !firstToken {
+				log.Info("...ancora in attesa del primo token (%s elapsed)",
+					time.Since(started).Round(time.Second))
 			}
-			break
+		case <-progressTicker.C:
+			if firstToken {
+				log.StreamProgress(tokenCount, time.Since(started))
+			}
+		case <-nonTTYTicker.C:
+			if firstToken && !log.IsTTY {
+				elapsed := time.Since(started)
+				rate := float64(tokenCount) / elapsed.Seconds()
+				log.Info("streaming in corso: %d token, %s elapsed (%.1f tok/s)",
+					tokenCount, elapsed.Round(time.Second), rate)
+			}
+		case ev, ok := <-ch:
+			if !ok {
+				log.StreamEnd(tokenCount, time.Since(started))
+				return b.String(), stato
+			}
+			if ev.Err != nil {
+				log.StreamEnd(tokenCount, time.Since(started))
+				log.Warn("stream error: %v", ev.Err)
+				return b.String(), stato
+			}
+			if ev.Token != "" {
+				if !firstToken {
+					firstToken = true
+					log.Info("primo token ricevuto (TTFT %s), generazione in corso...",
+						time.Since(started).Round(time.Millisecond))
+				}
+				b.WriteString(ev.Token)
+				tokenCount++
+			}
+			if ev.Done {
+				stato = "completato"
+				if ev.NoDoneMarker {
+					log.Warn("stream chiuso senza done marker dal server (output verosimilmente completo, ma il modello non ha emesso il chunk finale done:true — vedi bug eof-post-content-falsamente-interrotto)")
+				}
+				log.StreamEnd(tokenCount, time.Since(started))
+				return b.String(), stato
+			}
 		}
 	}
-	return b.String(), stato
 }

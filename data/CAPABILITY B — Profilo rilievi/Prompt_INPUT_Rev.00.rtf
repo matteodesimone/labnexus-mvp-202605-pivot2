@@ -1,0 +1,82 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2869
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 TASK: Gestione rilievi di una visita ispettiva \'97 produzione di un \
+piano strutturato (CAPA Pack) per ciascun rilievo.\
+\
+INPUT FORNITO:\
+Lista di rilievi sollevati durante una visita ispettiva.\
+Ogni rilievo ha: codice identificativo, tipologia \
+(Non Conformit\'e0 / Osservazione / Commento), punto della norma \
+citato, testo descrittivo del rilievo.\
+\
+ATTIVIT\'c0:\
+Per CIASCUN rilievo in input, produci un piano di gestione \
+articolato sulla triade:\
+\
+  MECCANISMO \uc0\u8594  ESTENSIONE \u8594  EFFICACIA\
+\
+Valuta caso per caso se:\
+- \'c8 sufficiente una CORREZIONE puntuale (sistemo il singolo caso)\
+- Serve anche un'AZIONE CORRETTIVA (rimuovo la causa radice)\
+- \'c8 necessario un piano di VERIFICA DI EFFICACIA (verifica che \
+  non si ripeta)\
+\
+OUTPUT ATTESO (markdown), per ciascun rilievo:\
+\
+## Rilievo [codice] \'97 [tipologia]\
+\
+### Inquadramento\
+- **Sezione norma citata:** [punto della norma]\
+- **Testo del rilievo:** [citazione integrale]\
+- **Severit\'e0 interpretata:** Bassa / Media / Alta\
+- **Natura:** Caso isolato / Indizio di problema sistemico\
+\
+### Meccanismo (causa radice)\
+Analisi della causa profonda, non superficiale. \
+Distinguere "sintomo" da "causa". Risalire ai fattori sistemici \
+(processo, formazione, documentazione, tecnologia).\
+\
+### Correzione (azione immediata sul caso)\
+- Cosa fare nello specifico\
+- Entro quando\
+- Chi \'e8 responsabile\
+- Quale evidenza viene prodotta a chiusura\
+\
+### Azione correttiva (se necessaria)\
+Da attivare quando la causa \'e8 sistemica o c'\'e8 rischio di ripetizione.\
+- Modifiche documentali necessarie\
+- Formazione del personale\
+- Modifiche di processo o di responsabilit\'e0\
+\
+### Estensione\
+Dove altro nel SGQ potrebbe manifestarsi lo stesso problema?\
+Lista delle aree, dei documenti, dei processi da verificare in \
+parallelo per accertarsi che il problema non sia pi\'f9 diffuso.\
+\
+### Verifica di efficacia\
+- **Quando:** tempistica della verifica\
+- **Come:** audit interno mirato / monitoraggio KPI / verifica \
+  documentale / re-test pratico\
+- **Criterio di chiusura:** cosa deve essere oggettivamente vero \
+  per dichiarare chiuso il rilievo\
+\
+### Tempistica complessiva\
+- Correzione: entro X giorni\
+- Azione correttiva: entro X giorni  \
+- Verifica efficacia: a X mesi\
+\
+---\
+\
+VINCOLI:\
+- Non inventare informazioni non presenti nell'input.\
+- Se manca un dato per una risposta solida, scrivi [DATO MANCANTE] \
+  e specifica cosa servirebbe per completare l'analisi.\
+- Decidi e motiva se la sola correzione basta o se serve azione \
+  correttiva: non lasciare la decisione al lettore.\
+- Evita formule difensive ("potrebbe", "in alcuni casi"). \
+  Sii diretto.}

@@ -61,6 +61,52 @@ Tutti fixabili pre-emptively con un grep audit di 5 minuti. Costati invece ~45 m
 
 Vedi `.pipeline/solutions/2026-05-21-sub-fetta-1.5.A-pivot-3-cli-puro.md` per il caso completo.
 
+## Estensione Sprint 1.5.B: pattern semantici, non solo sintattici
+
+Lesson da sub-fetta 1.5.B compound (2026-05-21): la versione iniziale della skill catturava solo pattern SINTATTICI (`.yml`, `osascript`, `.app`). Ma il pivot semantico può lasciare residui nei docs come **affermazioni inverse** del nuovo stato, non solo riferimenti a nomi obsoleti.
+
+Esempio 1.5.B: meta-prompt riga 284 diceva _"NON suggerire `provider: eurouter` per dati reali di Denis (deve passare per gate cloud + approvazione esplicita; **default ollama**)"_. Nessuna delle stringhe `.yml`/`ollama`/`gate` da sole è "obsoleta" sintatticamente — è l'**affermazione semantica complessiva** che è invertita post-pivot-3.
+
+### Checklist semantica estesa
+
+Per ogni pivot, oltre ai pattern sintattici, enumera anche:
+
+1. **Affermazioni di stato precedente** che ora sono FALSE. Esempi pivot-3:
+   - "non esce dalla macchina"
+   - "default ollama"
+   - "Ollama-only nel deliverable"
+   - "in locale"
+   - "no cloud"
+   - "approvazione esplicita necessaria per eurouter"
+
+2. **Affermazioni di direzione precedente** che ora sono INVERTITE. Esempi pivot-3:
+   - "NON suggerire eurouter"
+   - "evita cloud per dati reali"
+   - "preferisci ollama"
+
+3. **Marker by-product hardcoded** (frontmatter, header HTTP, log labels, env defaults) che riflettono il vecchio stato. Esempi 1.5.A:
+   - `locale: true` nei frontmatter
+   - `provider: ollama` come hardcoded default
+   - Comment di funzioni che descrive precedence vecchia
+
+### Grep pattern semantici (esempio)
+
+```bash
+# Per pivot locale→cloud:
+grep -rni "no cloud\|non esce\|in locale\|default ollama\|preferisci.*ollama\|approvazione.*eurouter" \
+  docs/ README.md CONTEXT.md .pipeline/standards/
+
+# Per pivot YAML→TOML:
+grep -rni "schema yaml\|formato yaml\|file yaml\|\.yml$" \
+  docs/ README.md CONTEXT.md .pipeline/standards/
+```
+
+I pattern semantici sono PROGETTO-SPECIFIC: devi enumerarli a mano sulla base della spec amendment. La skill non può proporli automaticamente, ma deve ricordarti DI farli.
+
+## Lesson 1.5.B integration nel /v-implement
+
+Apply pre-emptive: durante step 8 del plan 1.5.B "Update docs", esegui BOTH grep sintattici E semantici PRIMA del /v-review. Il review loop 1 di 1.5.B ha trovato 5 HIGH doc-drift che si potevano catturare con grep semantici (es. "default ollama" in meta-prompt). Costo: 5 min in più al implement. Risparmio: ~30 min di loop 2 fix-and-verify.
+
 ## Quando NON applicare
 
 - Bugfix di portata limitata (1-2 file, semantica invariata): doc audit grep è overkill

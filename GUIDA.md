@@ -14,7 +14,7 @@ Estraendo lo zip ottieni una cartella con dentro:
 | `labnexus.command` | **Quello che lanci tu con doppio click** |
 | `labnexus.config.toml` | **Il file della chiave API** (vedi sotto) |
 | `profili/` | I 7 profili shippati (revisione, rilievi, review-pack, audit-checklist, equipment-alert, competence-gap, pt-analysis) |
-| `lavori/` | 7 cartelle con materiale di test già pronto, una per profilo |
+| `lavori/` | 7 cartelle con materiale di test già pronto, una per profilo. Ogni cartella contiene un `Esegui.command` (doppio click → esegue subito quella capability) |
 | `KB-ispettore/` | La tua knowledge base (system context, NON modificare) |
 | `meta-prompt-genera-profilo.md` | Prompt da incollare in claude.ai per generare nuovi profili (avanzato) |
 | `guida-meta-prompt-denis.md` | Guida d'uso del meta-prompt (avanzato) |
@@ -53,57 +53,94 @@ Per editarlo:
 
 ### Passo 3 — Prima esecuzione (Gatekeeper macOS)
 
-Il programma non è firmato Apple Developer, quindi la prima volta macOS chiede conferma:
+Il programma non è firmato Apple Developer, quindi la prima volta macOS chiede conferma. Devi autorizzare 3 tipi di file:
 
-1. **Control-clic** (o clic-destro) su `labnexus.command` nel Finder
-2. Scegli **"Apri"** dal menu contestuale
-3. macOS chiede conferma → clicca **"Apri"** ancora
-4. Ripeti gli stessi 3 passi su `labnexus` (il binary). Anche questo deve essere autorizzato.
+1. **Control-clic** (o clic-destro) su `labnexus` (il binary) nel Finder → **"Apri"** → conferma
+2. **Control-clic** su `labnexus.command` (nella cartella principale) → **"Apri"** → conferma
+3. **Control-clic** su un qualsiasi `Esegui.command` dentro `lavori/<X>/` → **"Apri"** → conferma. Gli altri `Esegui.command` delle altre 6 cartelle si autorizzano automaticamente (sono identici).
 
 ✓ Fatto, **solo la prima volta**. Le volte successive: doppio click normale.
+
+> **Scorciatoia da Terminal** (per chi sa usarlo): apri Terminal, vai nella cartella di labnexus (`cd ~/labnexus/`) e lancia:
+> ```bash
+> xattr -dr com.apple.quarantine .
+> ```
+> Rimuove il flag Gatekeeper da tutti i file in un colpo solo. Più rapido se hai familiarità con Terminal.
 
 ---
 
 ## Uso quotidiano
 
-### Lanciare una capability su un materiale di test (i 7 lavori preconfigurati)
+### Lanciare una capability — il modo più semplice (1 doppio click)
 
-1. **Doppio click su `labnexus.command`**. Si apre Terminal e parte una procedura guidata.
+Apri il Finder. Vai dentro `lavori/`. Vedrai 7 cartelle, una per capability:
 
-2. **Seleziona il profilo**: la procedura ti mostra una lista dei 7 profili shippati. Usa le **frecce su/giù** per scorrere, **invio** per confermare. Esempio: seleziona `revisione`.
+```
+lavori/
+├── CAPABILITY A — Profilo revisione/
+│   └── Esegui.command          ← doppio click qui
+├── CAPABILITY B — Profilo rilievi/
+│   └── Esegui.command          ← oppure qui
+├── CAPABILITY C — Profilo review-pack/
+│   └── Esegui.command
+├── ... (le altre 4)
+```
 
-3. **Indica la cartella di input**: la procedura ti chiede dove sono i file. Per i materiali di test forniti:
-   - **Apri il Finder** in parallelo
-   - **Trascina la cartella** `lavori/CAPABILITY A — Profilo revisione` (o quella corrispondente al profilo che hai scelto) dal Finder direttamente sulla finestra Terminal
-   - Terminal incolla automaticamente il path. Premi **invio**.
+**Doppio click sul file `Esegui.command`** dentro la cartella della capability che vuoi lanciare.
 
-4. **Indica la cartella di output**: la procedura ti chiede dove salvare il risultato. Suggerimento: usa la sotto-cartella `output` dentro la cartella di lavoro:
-   - **Trascina la cartella** `lavori/CAPABILITY A — Profilo revisione/output/` su Terminal
-   - Se la cartella `output/` non esiste ancora, digita il path manualmente (es. `lavori/CAPABILITY A — Profilo revisione/output`) — verrà creata automaticamente
-   - Premi **invio**.
+✓ Si apre Terminal. Niente domande, niente drag&drop. L'esecuzione parte automaticamente: il programma sa che profile usare (es. `revisione` dalla cartella `CAPABILITY A — Profilo revisione`) e dove sono i file di input (la cartella stessa).
 
-5. **Aspetta**. Vedrai messaggi tipo:
-   ```
-   [10:32:14] chiamata provider eurouter ...
-   [10:32:14] attendo risposta dal modello (warmup può richiedere minuti)...
-   [10:32:51] primo token ricevuto, generazione in corso...
-   ```
-   Poi il **testo del modello scorrerà a video in tempo reale**: vedi il modello che pensa. Tempo tipico: da 1 minuto a 8-10 minuti, dipende dal volume di input.
+Vedrai messaggi tipo:
+```
+═══════════════════════════════════════════════════════════════════
+  Lancio: CAPABILITY A — Profilo revisione
+═══════════════════════════════════════════════════════════════════
 
-6. **Risultato finale**: la procedura termina con la riga `output: <path/al/file.md>`. Apri quel file `.md` con il tuo editor (Obsidian, TextEdit, Marked, ecc.) per leggere la bozza prodotta.
+[10:32:14] caricamento profilo ok (0 ms)
+[10:32:14] caricamento KB ok (1 ms)
+[10:32:14] parsing input ok (16 ms)
+[10:32:14] composizione prompt ok (0 ms)
+[10:32:14] stima context ok (0 ms)
+[10:32:14] chiamata provider eurouter ...
+[10:32:14] attendo risposta dal modello (warmup può richiedere minuti)...
+[10:32:51] primo token ricevuto, generazione in corso...
+```
+
+Poi il **testo del modello scorre a video in tempo reale** — vedi il modello "pensare". Tempo tipico: da 1 minuto a 8-10 minuti.
+
+Quando finisce:
+```
+═══════════════════════════════════════════════════════════════════
+  Completato. Output salvato in: <path>/lavori/CAPABILITY A — Profilo revisione/output/
+═══════════════════════════════════════════════════════════════════
+```
+
+Premi un tasto per chiudere la finestra.
 
 ### Dove trovi i risultati
 
-Ogni esecuzione produce DUE file nella cartella di output:
+Dentro la cartella `output/` della capability che hai lanciato (es. `lavori/CAPABILITY A — Profilo revisione/output/`). Ogni esecuzione produce DUE file:
 
 | File | Cosa contiene |
 |---|---|
 | `<timestamp>_<profile>_<input>.md` | **La bozza prodotta dal modello**. È quello che leggi tu. |
-| `<timestamp>_<profile>_<input>.log` | Un file tecnico (audit trail). Lo ignori, serve a noi del team se devi segnalare un problema. |
+| `<timestamp>_<profile>_<input>.log` | File tecnico (audit trail). Lo ignori, serve al team se devi segnalare un problema. |
+
+Apri il `.md` con il tuo editor (Obsidian, TextEdit, Marked, ecc.) e leggi.
 
 ### Provare un'altra capability
 
-Ripeti i 5 passi sopra, scegliendo un altro profilo nella TUI (es. `rilievi`, `review-pack`, ecc.) e trascinando la cartella corrispondente in `lavori/`.
+Stessa cosa: doppio click sull'`Esegui.command` di un'altra cartella in `lavori/`. Ogni cartella è indipendente, puoi alternare l'ordine come vuoi.
+
+### Modo alternativo (TUI sequenziale)
+
+Se preferisci scegliere la capability da una lista invece che navigare il Finder, puoi anche:
+
+1. Doppio click su `labnexus.command` **nella cartella principale** (NON quello dentro `lavori/<X>/`)
+2. La procedura ti chiede: profilo (frecce + invio) → cartella input (trascina dal Finder) → cartella output (trascina o digita)
+3. Esegue
+
+Questo è il modo "vecchio" Sprint 1, sempre disponibile. Per uso quotidiano il doppio click su `Esegui.command` dentro la cartella di lavoro è più rapido.
 
 ---
 

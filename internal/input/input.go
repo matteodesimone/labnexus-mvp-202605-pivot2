@@ -63,6 +63,15 @@ func ParseDir(dir string) (*ParsedResult, error) {
 }
 
 // listFilesDeterministic ritorna i nomi file (non dir) ordinati alfabeticamente.
+// labnexusInternalFiles sono file infrastrutturali della cartella di lavoro
+// (Sprint 1.5.C concierge mode) che NON vanno parsati come input domain-specific.
+// Skip silenzioso: niente warning "formato non supportato".
+var labnexusInternalFiles = map[string]bool{
+	"_labnexus.toml":  true, // job metadata (FR-26)
+	"Esegui.command":  true, // launcher per-capability (Sprint 1.5.C concierge)
+	".DS_Store":       true, // macOS metadata
+}
+
 func listFilesDeterministic(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -72,6 +81,9 @@ func listFilesDeterministic(dir string) ([]string, error) {
 	for _, e := range entries {
 		if e.IsDir() {
 			continue // walk non ricorsivo
+		}
+		if labnexusInternalFiles[e.Name()] {
+			continue // skip file infrastrutturali Sprint 1.5.C
 		}
 		names = append(names, e.Name())
 	}

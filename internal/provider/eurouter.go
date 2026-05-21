@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -75,11 +76,19 @@ func (p *EurouterProvider) doRequest(ctx context.Context, system, user string, o
 	client := p.httpClientOrDefault()
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("eurouter: request: %w", err)
+		return nil, fmt.Errorf("eurouter: request POST %s: %w", endpoint, err)
 	}
 	if resp.StatusCode != http.StatusOK {
+		// Leggi il body di errore (max 4KB) per diagnosi: eurouter tipicamente
+		// ritorna JSON tipo `{"error": "model 'X' not found"}`. Senza questo,
+		// l'utente vedeva solo "HTTP 404" senza modo di capire il problema.
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, fmt.Errorf("eurouter: HTTP %d", resp.StatusCode)
+		bodyStr := strings.TrimSpace(string(errBody))
+		if bodyStr == "" {
+			return nil, fmt.Errorf("eurouter: HTTP %d POST %s (modello=%q, body risposta vuoto)", resp.StatusCode, endpoint, opts.Modello)
+		}
+		return nil, fmt.Errorf("eurouter: HTTP %d POST %s (modello=%q): %s", resp.StatusCode, endpoint, opts.Modello, bodyStr)
 	}
 	return resp, nil
 }

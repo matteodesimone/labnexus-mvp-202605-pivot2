@@ -113,6 +113,9 @@ func loadAndValidateProfile(cfg Config, log *runlog.Logger) (*profile.Profile, e
 	if err := profile.Validate(merged, cfg.KbDir); err != nil {
 		return nil, fmt.Errorf("runner: validate profilo: %w", err)
 	}
+	// Sprint 1.5.C verbose: log effettivo provider/modello post-merge.
+	log.Info("profilo %q: provider=%s modello=%s temperature=%.2f max_tokens=%d context_window=%d",
+		merged.Profilo, merged.Provider, merged.Modello, merged.Temperature, merged.MaxTokens, merged.ContextWindow)
 	return merged, nil
 }
 
@@ -159,17 +162,37 @@ func loadMasterOptional(path string, log *runlog.Logger) *config.Master {
 func loadKBTexts(cfg Config, p *profile.Profile, log *runlog.Logger) ([]string, error) {
 	log.BeginStep("caricamento KB")
 	defer log.EndStep()
-	return loadKB(cfg.KbDir, p.KbFiles)
+	log.Info("kb dir: %s (%d file da caricare)", cfg.KbDir, len(p.KbFiles))
+	texts, err := loadKB(cfg.KbDir, p.KbFiles)
+	if err != nil {
+		return nil, err
+	}
+	// Sprint 1.5.C verbose: per file, mostra il path + dim caratteri.
+	totalChars := 0
+	for i, t := range texts {
+		log.Info("  • %s (%d caratteri)", p.KbFiles[i], len(t))
+		totalChars += len(t)
+	}
+	log.Info("KB totale: %d caratteri", totalChars)
+	return texts, nil
 }
 
 // parseInputDir esegue il walk non-ricorsivo e parsa i file della cartella di input.
 func parseInputDir(cfg Config, log *runlog.Logger) (*input.ParsedResult, error) {
 	log.BeginStep("parsing input")
 	defer log.EndStep()
+	log.Info("input dir: %s", cfg.InputDir)
 	parsed, err := input.ParseDir(cfg.InputDir)
 	if err != nil {
 		return nil, fmt.Errorf("runner: parse input: %w", err)
 	}
+	// Sprint 1.5.C verbose: lista file parsati con dim.
+	totalInputChars := 0
+	for _, f := range parsed.Files {
+		log.Info("  • %s (%d caratteri estratti)", f.Name, f.Size)
+		totalInputChars += f.Size
+	}
+	log.Info("input totale: %d file parsati, %d caratteri", len(parsed.Files), totalInputChars)
 	for _, sk := range parsed.Skipped {
 		log.Warn("%s: %s (suggerimento: converti manualmente con pandoc se è un PDF complesso)", sk.Name, sk.Reason)
 	}
@@ -211,6 +234,9 @@ func checkTokensAgainstContext(p *profile.Profile, composed *prompt.Composed, lo
 	if ctxWin <= 0 {
 		ctxWin = 128000
 	}
+	// Sprint 1.5.C verbose: dimensioni system + user message.
+	log.Info("system message: %d caratteri | user message: %d caratteri (totale %d)",
+		len(composed.System), len(composed.User), len(composed.System)+len(composed.User))
 	check, err := tokens.Check(len(composed.System)+len(composed.User), ctxWin)
 	if err != nil {
 		return nil, err
@@ -218,8 +244,9 @@ func checkTokensAgainstContext(p *profile.Profile, composed *prompt.Composed, lo
 	if check.Block {
 		return nil, fmt.Errorf("runner: context window superato: %d token, limite %d (%.0f%%) — riduci i file di input o aumenta context_window nel profilo", check.Tokens, ctxWin, check.Ratio*100)
 	}
+	log.Info("stima token: %d / context window %d (%.0f%% utilization)", check.Tokens, ctxWin, check.Ratio*100)
 	if check.Warning {
-		log.Warn("context window al %.0f%% (%d token su %d)", check.Ratio*100, check.Tokens, ctxWin)
+		log.Warn("context window al %.0f%% — riduci input o aumenta context_window per sicurezza", check.Ratio*100)
 	}
 	return check, nil
 }
@@ -271,6 +298,8 @@ func streamAndWriteOutput(cfg Config, p *profile.Profile, composed *prompt.Compo
 		defer logFile.Close()
 	}
 	multiLog.BeginStep("chiamata provider " + prov.Name())
+	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
+	logProviderRequest(multiLog, prov, p)
 	body, stato, err := callProviderWithStreaming(prov, composed, p, multiLog, bodyWriter)
 	duration := time.Since(started)
 	multiLog.EndStep()
@@ -288,6 +317,27 @@ func streamAndWriteOutput(cfg Config, p *profile.Profile, composed *prompt.Compo
 		TokensUsed:  check.Tokens,
 		DurationSec: duration.Seconds(),
 	}, nil
+}
+
+// logProviderRequest stampa info diagnostiche prima della chiamata al provider
+// (Sprint 1.5.C verbose). Endpoint risolto via env override o default. Visibile
+// anche nel .log accoppiato (audit trail NFR-11).
+func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profile.Profile) {
+	var endpoint string
+	switch prov.Name() {
+	case "eurouter":
+		endpoint = os.Getenv("LABNEXUS_EUROUTER_ENDPOINT")
+		if endpoint == "" {
+			endpoint = "https://api.eurouter.ai/v1/chat/completions"
+		}
+	case "ollama":
+		endpoint = os.Getenv("LABNEXUS_OLLAMA_ENDPOINT")
+		if endpoint == "" {
+			endpoint = "http://localhost:11434"
+		}
+	}
+	log.Info("provider: %s | endpoint: %s | modello: %s | temperature: %.2f | max_tokens: %d",
+		prov.Name(), endpoint, p.Modello, p.Temperature, p.MaxTokens)
 }
 
 // outputBaseName ritorna il base name del file output (senza estensione).

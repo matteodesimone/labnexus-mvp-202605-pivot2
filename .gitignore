@@ -85,3 +85,5 @@ coverage.html
 /bin/
 labnexus-smoke
 labnexus-final
+# Sprint 1.5.C: binary buildato al root per smoke test locali (go build -o ./labnexus ./cmd/labnexus)
+/labnexus

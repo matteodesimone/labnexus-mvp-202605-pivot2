@@ -53,10 +53,10 @@ descrizione = "<una riga descrittiva>"
 # OPZIONALI (Sprint 1.5.B): se omessi, ereditati da labnexus.config.toml al root.
 # Override locale possibile (vince sul master se setted).
 provider       = "eurouter"                # {ollama | eurouter}, default master = eurouter
-modello        = "qwen3.6"                 # qwen3.6 di default
+modello        = "qwen3.5-122b-a10b"       # Qwen3.5 122B A10B di default Sprint 1.5.C
 temperature    = 0.9
 max_tokens     = 8192
-context_window = 128000
+context_window = 262000                    # 262K Sprint 1.5.C (era 128K Sprint 1)
 
 # OBBLIGATORIO — almeno 1 file della KB-ispettore (path relativi a ./KB-ispettore/)
 kb_files = [
@@ -135,7 +135,7 @@ profilo     = "revisione"
 descrizione = "Revisione documentale in seguito a cambio di norma di riferimento"
 
 # Provider/modello/parametri ereditati dal master labnexus.config.toml
-# (eurouter, qwen3.6, 0.9, 8192, 128000 di default Sprint 1.5+).
+# (eurouter, qwen3.5-122b-a10b, 0.9, 8192, 262000 di default Sprint 1.5.C).
 # Override locale possibile aggiungendo le righe corrispondenti qui sotto.
 
 kb_files = [

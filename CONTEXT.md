@@ -74,7 +74,7 @@ docs/piano_iniziale/ # materiale di bootstrap (brief, KB, golden file Test 1)
 ## Configuration
 
 - `.pipeline/config.sh`: `PROJECT_TYPE=prove-out`, `REVIEW=all` con loop max 3, `SHIP_CMD=./scripts/build-zip.sh`, soglie `MAX_FUNCTION_LINES=20`, `MAX_CYCLOMATIC_COMPLEXITY=5`, `MAX_NESTING_DEPTH=2`.
-- Profili YAML: schema definito in `internal/profile/profile.go` (FR-3). Default Sprint 1: `temperature: 0.9`, `max_tokens: 8192`, `context_window: 128000`, `modello: qwen3.6`.
+- Profili TOML (Sprint 1.5.B+): schema definito in `internal/profile/profile.go` (FR-3). Default Sprint 1.5.C: `temperature: 0.9`, `max_tokens: 8192`, `context_window: 262000`, `modello: qwen3.5-122b-a10b`. Sprint 1: era `modello: qwen3.6, context_window: 128000` (Ollama-style).
 
 ## Quality Standards
 

@@ -9,13 +9,22 @@
 # nel profile o via CLI/env (--provider, LABNEXUS_PROVIDER).
 provider = "eurouter"
 
-# Modello di default. Qwen 3 family, 36B MoE su eurouter.
-modello = "qwen3.6"
+# Modello di default. Qwen 3.5 family, thinking mode, 262K context.
+# Sprint 1.5.C update post-smoke CTO: era "qwen3.6" (nome Ollama-style Sprint 1)
+# ma eurouter non lo riconosce. Sostituito con Qwen3.5 122B A10B (MoE 122B totali /
+# 10B activated, 262K context, thinking+tools+JSON, $0.50/$3.50 per Mtok). Match
+# scelto per task ispettivi che richiedono ragionamento profondo (review-pack
+# annuale, competence-gap multi-tecnico, pt-analysis con z-score).
+# Per cambiare modello, consulta il catalogo su https://api.eurouter.ai/api/v1/models
+# o il dashboard eurouter (filtro qwen).
+modello = "qwen3.5-122b-a10b"
 
-# Parametri LLM di default.
+# Parametri LLM di default. Sprint 1.5.C: context_window allargato a 262K
+# (4x rispetto al setting Sprint 1) per sfruttare la capacità del modello scelto
+# e dare margine per review-pack annuali con KB+input grossi.
 temperature = 0.9
 max_tokens = 8192
-context_window = 128000
+context_window = 262000
 
 # Chiave API per eurouter. Denis la riempie qui dopo lo zip extract.
 # In alternativa, può essere passata come env var EUROUTER_API_KEY (precedenza env > master).

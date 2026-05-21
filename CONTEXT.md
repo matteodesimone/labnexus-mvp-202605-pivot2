@@ -26,7 +26,7 @@ internal/
   runner/            # logic: orchestratore Pipeline stages
   tui/               # presentation: huh-based sequential flow cross-platform (FR-10)
 features/            # godog BDD acceptance (7 feature files + step impl)
-profili/             # YAML delle capability (revisione, rilievi, review-pack, audit-checklist, equipment-alert)
+profili/             # YAML delle capability (revisione, rilievi, review-pack, audit-checklist, equipment-alert, competence-gap, pt-analysis)
 KB-ispettore/        # symlink alla KB scritta da Denis (system context, NON modificato da noi)
 scripts/             # build-mac.sh, build-linux.sh, build-zip.sh
 .pipeline/           # spec, plan, fette, state.json, test-data, standards

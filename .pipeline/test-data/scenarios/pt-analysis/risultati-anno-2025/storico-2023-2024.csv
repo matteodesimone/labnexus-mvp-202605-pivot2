@@ -1,0 +1,10 @@
+codice_pt,circuito,parametro,metodo,z_score,valutazione,data,anno
+PT-2023-04,LGC-7321,Cd metalli pesanti,PCM-09,-0.5,soddisfacente,2023-04-10,2023
+PT-2023-08,LGC-7421,Pb metalli pesanti,PCM-09,0.8,soddisfacente,2023-09-12,2023
+PT-2023-12,FAPAS-CW011,Tensioattivi,PCM-08,-1.2,soddisfacente,2023-11-08,2023
+PT-2024-03,LGC-7621,Cd metalli pesanti,PCM-09,-1.6,soddisfacente,2024-04-12,2024
+PT-2024-07,LGC-7821,Pb metalli pesanti,PCM-09,1.4,soddisfacente,2024-09-15,2024
+PT-2024-09,FAPAS-CW011,Tensioattivi,PCM-08,2.1,questionabile,2024-11-04,2024
+PT-2024-11,UNICHIM-326,COD,PCM-04,0.6,soddisfacente,2024-06-10,2024
+PT-2024-13,UNICHIM-326,BOD5,PCM-05,-0.4,soddisfacente,2024-06-10,2024
+PT-2024-15,UNICHIM-352,Cloruri,PCM-03,-0.9,soddisfacente,2024-11-20,2024

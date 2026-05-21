@@ -60,7 +60,7 @@ Comandi accessori:
 | F | `competence-gap` | Gap competenze da matrice + procedura nuova |
 | G | `pt-analysis` | Analisi z-score PT |
 
-In Sprint 1 sono validate sull'hardware locale; nuove capability possono essere aggiunte tra sprint via prompt meta (vedi Sprint 2).
+In Sprint 1 sono validate sull'hardware locale. **Nuove capability** puoi aggiungerle tra sprint in autonomia tramite il **prompt meta** (Sprint 1 Fetta 3, FR-20): apri `claude.ai`, incolla `docs/meta-prompt-genera-profilo.md`, descrivi il task, segui le domande di chiarimento, salva lo YAML in `profili/` e lancia `labnexus validate <nome>`. Guida operativa step-by-step: `docs/guida-meta-prompt-denis.md`.
 
 ## Cosa vedo durante l'esecuzione
 

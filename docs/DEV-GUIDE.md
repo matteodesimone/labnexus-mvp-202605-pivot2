@@ -112,7 +112,8 @@ features/                     # godog BDD
   helpers_test.go             # scenarioState, fake server Ollama/EUrouter, subprocess invoke
   *_steps_test.go             # step impl in italiano con (?:che )? prefix per Gherkin
   *.feature                   # 7 file scenari
-profili/                      # YAML capability shippable (revisione, rilievi, review-pack, audit-checklist, equipment-alert)
+profili/                      # YAML capability shippable (revisione, rilievi, review-pack, audit-checklist, equipment-alert, competence-gap, pt-analysis)
+docs/                         # meta-prompt-genera-profilo.md + guida-meta-prompt-denis.md (FR-20/21, deliverable Sprint 1)
 KB-ispettore                  # symlink → docs/piano_iniziale/materiali-dominio/KB-ispettore
 scripts/                      # build-mac.sh, build-linux.sh, build-zip.sh
 ```

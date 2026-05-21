@@ -232,6 +232,21 @@ func registerSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^il body include un ragionamento causale tra stato apparecchiatura e impatto metodi$`, bodyRagionamentoCausale)
 	ctx.Step(`^il frontmatter contiene i default del profilo "([^"]+)"$`, fmContieneDefaultDelProfilo)
 	ctx.Step(`^stderr avvisa che l'output contiene PII potenziali da non condividere$`, stderrAvvisaPIIPotenziali)
+
+	// --- Fetta 3: profili F/G (competence-gap, pt-analysis, FR-18/19) ---
+	ctx.Step(`^(?:che )?il profilo "competence-gap" è installato dal file di progetto$`, installCompetenceGap)
+	ctx.Step(`^(?:che )?il profilo "pt-analysis" è installato dal file di progetto$`, installPTAnalysis)
+	ctx.Step(`^(?:che )?la cartella di input contiene la matrice competenze sintetica e la descrizione di procedura nuova$`, useCompetenceGapInput)
+	ctx.Step(`^(?:che )?la cartella di input contiene risultati PT 2025, elenco metodi e storico 2023-2024$`, usePTAnalysisInput)
+	ctx.Step(`^il body contiene le 4 sezioni del Competence Gap Report$`, bodyContiene4SezioniCompetenceGap)
+	ctx.Step(`^il body cita SOLO nomi tecnici presenti nella matrice$`, bodyCitaSoloNomiInMatrice)
+	ctx.Step(`^il body contiene un piano formazione con tempistiche$`, bodyContienePianoFormazione)
+	ctx.Step(`^il body contiene una sezione autorizzazioni da rilasciare o aggiornare$`, bodyContieneSezioneAutorizzazioni)
+	ctx.Step(`^il body contiene 4 sezioni numerate del PT Investigation Pack$`, bodyContiene4SezioniInvestigationPack)
+	ctx.Step(`^il body classifica il rischio per metodo \(alto, medio, basso\)$`, bodyClassificaRischioPerMetodo)
+	ctx.Step(`^il body cita SOLO codici PT presenti nei risultati di input$`, bodyCitaSoloCodiciPTDaInput)
+	ctx.Step(`^il body cita SOLO codici metodo presenti nell'elenco metodi$`, bodyCitaSoloCodiciMetodoDaInput)
+	ctx.Step(`^il body include azioni immediate per i casi con z-score fuori soglia$`, bodyIncludeAzioniImmediateZScore)
 }
 
 // ============================================================
@@ -1488,7 +1503,7 @@ func installFromProject(c context.Context, name, cannedBody string) (context.Con
 	// Bug #006 fix: include `output.frontmatter_default` per esercitare il merge
 	// dell'engine (vedi internal/output/output.go::mergeFrontmatterDefaults).
 	yaml := minimalProfileYAML(name)
-	if defaults, ok := fetta2ExpectedDefaults[name]; ok {
+	if defaults, ok := profileExpectedDefaults[name]; ok {
 		yaml += "\noutput:\n  frontmatter_default:\n"
 		for k, v := range defaults {
 			yaml += fmt.Sprintf("    %s: %q\n", k, v)
@@ -1824,10 +1839,11 @@ func bodyCitaMetodiAssociati(c context.Context) (context.Context, error) {
 	return c, checkMetodiOnlyFromSet(content, allowed)
 }
 
-// fetta2ExpectedDefaults: M4 fix — i default attesi nel frontmatter dell'output
-// per ognuna delle 3 capability di Fetta 2 (devono combaciare con
-// output.frontmatter_default del rispettivo profilo YAML).
-var fetta2ExpectedDefaults = map[string]map[string]string{
+// profileExpectedDefaults: i default attesi nel frontmatter dell'output per
+// ogni capability con un profile reale shippable. Devono combaciare col
+// blocco `output.frontmatter_default` del rispettivo profilo YAML.
+// Esteso con F+G in Fetta 3 (la mappa era originariamente Fetta 2 M4 fix).
+var profileExpectedDefaults = map[string]map[string]string{
 	"review-pack": {
 		"tipo":             "management_review_pack",
 		"stato_qm":         "bozza_da_validare_qm",
@@ -1844,6 +1860,18 @@ var fetta2ExpectedDefaults = map[string]map[string]string{
 		"tipo":             "equipment_alert",
 		"stato_qm":         "bozza_da_validare_qm",
 		"profilo_labnexus": "equipment-alert",
+		"locale":           "true",
+	},
+	"competence-gap": {
+		"tipo":             "competence_gap_report",
+		"stato_qm":         "bozza_da_validare_qm",
+		"profilo_labnexus": "competence-gap",
+		"locale":           "true",
+	},
+	"pt-analysis": {
+		"tipo":             "pt_investigation_pack",
+		"stato_qm":         "bozza_da_validare_qm",
+		"profilo_labnexus": "pt-analysis",
 		"locale":           "true",
 	},
 }
@@ -1891,9 +1919,9 @@ func frontmatterContainsKV(fm string, expected map[string]string) error {
 }
 
 func fmContieneDefaultDelProfilo(c context.Context, profilo string) (context.Context, error) {
-	expected, ok := fetta2ExpectedDefaults[profilo]
+	expected, ok := profileExpectedDefaults[profilo]
 	if !ok {
-		return c, fmt.Errorf("default attesi non definiti per profilo '%s' (aggiungerli a fetta2ExpectedDefaults)", profilo)
+		return c, fmt.Errorf("default attesi non definiti per profilo '%s' (aggiungerli a profileExpectedDefaults)", profilo)
 	}
 	s := getState(c)
 	content, err := s.readOutputFile()
@@ -2069,4 +2097,400 @@ Corpo: gentile fornitore, allego il certificato in oggetto con evidenza di scost
 - [ ] Nuovo certificato LAT con scostamento ≤ ±0.5 °C su tutto il range.
 - [ ] Verifica intermedia di conferma contro R-001.
 - [ ] Aggiornamento scheda apparecchiatura e re-inserimento in produzione.`
+}
+
+// ============================================================
+// Fetta 3 — profili F/G (competence-gap, pt-analysis)
+// FR-18/19 — stesso pattern Fetta 2: schema-validation gate in install,
+// canned fake Ollama, hallucination-prevention via fixture-set
+// (nomi tecnici dalla matrice, codici PT + metodi dagli input).
+// ============================================================
+
+func installCompetenceGap(c context.Context) (context.Context, error) {
+	return installFromProject(c, "competence-gap", cannedCompetenceGapBody())
+}
+
+func installPTAnalysis(c context.Context) (context.Context, error) {
+	return installFromProject(c, "pt-analysis", cannedPTAnalysisBody())
+}
+
+func useCompetenceGapInput(c context.Context) (context.Context, error) {
+	return useFixtureDir(c, filepath.Join("competence-gap", "matrice-sintetica"))
+}
+
+func usePTAnalysisInput(c context.Context) (context.Context, error) {
+	return useFixtureDir(c, filepath.Join("pt-analysis", "risultati-anno-2025"))
+}
+
+// --- competence-gap assertions ---
+
+// reSezioneMarkdownH2 conta le sezioni `## ` (heading H2). Per il
+// Competence Gap Report ci aspettiamo ESATTAMENTE 4 sezioni dichiarate
+// nel trigger_prompt: (1) autorizzati, (2) gap, (3) piano formazione,
+// (4) autorizzazioni da rilasciare/aggiornare.
+var reSezioneMarkdownH2 = regexp.MustCompile(`(?m)^## `)
+
+func countMarkdownH2(body string) int {
+	return len(reSezioneMarkdownH2.FindAllString(body, -1))
+}
+
+func bodyContiene4SezioniCompetenceGap(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	if n := countMarkdownH2(content); n != 4 {
+		return c, fmt.Errorf("attesto esattamente 4 sezioni H2 nel Competence Gap Report, trovate %d", n)
+	}
+	return c, nil
+}
+
+// fixtureAllowedNomiTecnici: legge la prima colonna del CSV matrice
+// competenze e restituisce l'insieme dei nomi tecnici ammessi. Pattern
+// hallucination-prevention (skill di progetto Fetta 2) applicato alla
+// classe "persone della matrice".
+func fixtureAllowedNomiTecnici() (map[string]bool, error) {
+	matrice := filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+		"competence-gap", "matrice-sintetica", "matrice-competenze.csv")
+	b, err := os.ReadFile(matrice)
+	if err != nil {
+		return nil, fmt.Errorf("fixture matrice-competenze.csv non leggibile: %v", err)
+	}
+	allowed := map[string]bool{}
+	for i, line := range strings.Split(string(b), "\n") {
+		if i == 0 || strings.TrimSpace(line) == "" {
+			continue // header o linea vuota
+		}
+		// Primo campo prima della prima virgola = nome tecnico.
+		if comma := strings.IndexByte(line, ','); comma > 0 {
+			name := strings.TrimSpace(line[:comma])
+			if name != "" {
+				allowed[name] = true
+			}
+		}
+	}
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("matrice-competenze.csv non contiene nomi tecnici nella prima colonna")
+	}
+	return allowed, nil
+}
+
+// reNomeCognome: pattern minimale per "Nome Cognome" maiuscoli, con
+// accento opzionale nelle iniziali. Tollerante a ulteriori nomi composti
+// (Davide Costa, Anna Conti). Per la verifica only-from-set di
+// competence-gap. Evita di catturare "Capability F" o "Sprint 1" perché
+// "Capability" non ha la struttura Nome+Cognome a 2 token consecutivi
+// con stessa convenzione.
+var reNomeCognome = regexp.MustCompile(`\b([A-ZÀ-Ý][a-zà-ÿ]+)\s+([A-ZÀ-Ý][a-zà-ÿ]+)\b`)
+
+func extractCitedNames(body string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range reNomeCognome.FindAllStringSubmatch(body, -1) {
+		out[m[1]+" "+m[2]] = true
+	}
+	return out
+}
+
+func bodyCitaSoloNomiInMatrice(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	allowed, err := fixtureAllowedNomiTecnici()
+	if err != nil {
+		return c, err
+	}
+	cited := extractCitedNames(content)
+	if len(cited) == 0 {
+		return c, fmt.Errorf("body non cita alcun nome tecnico (Nome Cognome) — atteso almeno 1 dalla matrice")
+	}
+	// Filtra solo i nomi che sono ANCHE nella forma "Nome Cognome" della
+	// matrice (l'output potrebbe citare "Maria Rossi e Luca Ferri" come
+	// match plurali; cerchiamo allucinazioni rispetto al SET).
+	for name := range cited {
+		if !allowed[name] {
+			return c, fmt.Errorf("nome %q citato nel body ma NON presente nella matrice fixture (possibile allucinazione)", name)
+		}
+	}
+	return c, nil
+}
+
+func bodyContienePianoFormazione(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	lower := strings.ToLower(content)
+	if !strings.Contains(lower, "piano formazione") && !strings.Contains(lower, "piano di formazione") {
+		return c, fmt.Errorf("body non contiene 'piano formazione'")
+	}
+	// Tempistica = una data ISO (YYYY-MM-DD) o un trimestre (Q1-2026...) o "settimane/mesi".
+	hasTempistica := regexp.MustCompile(`\d{4}-\d{2}-\d{2}|Q\d-\d{4}|\d+\s+(?:settiman|mesi|gg|giorn)`).MatchString(lower)
+	if !hasTempistica {
+		return c, fmt.Errorf("piano formazione privo di tempistiche concrete (date ISO / trimestre / settimane / mesi)")
+	}
+	return c, nil
+}
+
+func bodyContieneSezioneAutorizzazioni(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	lower := strings.ToLower(content)
+	if !strings.Contains(lower, "autorizz") {
+		return c, fmt.Errorf("body non menziona alcuna autorizzazione")
+	}
+	return c, nil
+}
+
+// --- pt-analysis assertions ---
+
+var reSezioneNumerataInvestigation = regexp.MustCompile(`(?m)^## \d+\.`)
+
+func bodyContiene4SezioniInvestigationPack(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	matches := reSezioneNumerataInvestigation.FindAllString(content, -1)
+	if len(matches) != 4 {
+		return c, fmt.Errorf("atteso esattamente 4 sezioni numerate (## N.) per Investigation Pack, trovate %d", len(matches))
+	}
+	if err := hasExactNumberedSectionSequence(content, 4); err != nil {
+		return c, err
+	}
+	// FR-19 + review loop 1 fix (codex test-coverage): la sezione 3 DEVE
+	// essere il trend storico. Verifica presenza di keyword "trend" o
+	// "storico" + almeno un riferimento agli anni precedenti (2023/2024).
+	lower := strings.ToLower(content)
+	if !strings.Contains(lower, "trend") && !strings.Contains(lower, "storic") {
+		return c, fmt.Errorf("body privo di sezione trend/storico (FR-19 richiede trend 2-3 anni)")
+	}
+	if !strings.Contains(content, "2023") && !strings.Contains(content, "2024") {
+		return c, fmt.Errorf("trend non cita anni precedenti (2023 o 2024 attesi dal fixture storico)")
+	}
+	return c, nil
+}
+
+// Markdown-emphasis-tollerant: matcha "rischio alto", "rischio **alto**",
+// "rischio: alto", "rischio: **alto**", "_rischio_ _alto_" ecc. Real Qwen
+// può usare emphasis liberamente.
+var reRischioLivelloAlto = regexp.MustCompile(`(?i)rischio[\s:*_]+\*{0,2}_?(?:alto|elevato)`)
+var reRischioLivelloMedio = regexp.MustCompile(`(?i)rischio[\s:*_]+\*{0,2}_?medio`)
+var reRischioLivelloBasso = regexp.MustCompile(`(?i)rischio[\s:*_]+\*{0,2}_?basso`)
+
+func bodyClassificaRischioPerMetodo(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	hasAlto := reRischioLivelloAlto.MatchString(content)
+	hasMedio := reRischioLivelloMedio.MatchString(content)
+	hasBasso := reRischioLivelloBasso.MatchString(content)
+	count := 0
+	for _, h := range []bool{hasAlto, hasMedio, hasBasso} {
+		if h {
+			count++
+		}
+	}
+	if count < 2 {
+		return c, fmt.Errorf("classificazione rischio insufficiente: attesi ≥ 2 livelli fra alto/medio/basso esplicitati, trovati %d", count)
+	}
+	return c, nil
+}
+
+var rePTCode = regexp.MustCompile(`PT-\d{4}-\d{2}`)
+
+func fixtureAllowedPTCodes() (map[string]bool, error) {
+	pt2025 := filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+		"pt-analysis", "risultati-anno-2025", "risultati-pt-2025.csv")
+	storico := filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+		"pt-analysis", "risultati-anno-2025", "storico-2023-2024.csv")
+	allowed := map[string]bool{}
+	for _, p := range []string{pt2025, storico} {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("fixture %q non leggibile: %v", p, err)
+		}
+		for _, m := range rePTCode.FindAllString(string(b), -1) {
+			allowed[m] = true
+		}
+	}
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("nessun codice PT-YYYY-NN trovato nelle fixture")
+	}
+	return allowed, nil
+}
+
+func bodyCitaSoloCodiciPTDaInput(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	allowed, err := fixtureAllowedPTCodes()
+	if err != nil {
+		return c, err
+	}
+	cited := map[string]bool{}
+	for _, m := range rePTCode.FindAllString(content, -1) {
+		cited[m] = true
+	}
+	if len(cited) == 0 {
+		return c, fmt.Errorf("body non cita alcun codice PT — atteso ≥ 1 dai risultati di input")
+	}
+	for code := range cited {
+		if !allowed[code] {
+			return c, fmt.Errorf("codice %q citato nel body ma NON presente nelle fixture (allucinazione)", code)
+		}
+	}
+	return c, nil
+}
+
+func fixtureAllowedMetodiCodes() (map[string]bool, error) {
+	// I codici metodo PCM-NN sono già estratti via rePCMCode (helper esistente).
+	// Sorgenti: elenco-metodi.md + risultati-pt-2025.csv + storico-2023-2024.csv.
+	sources := []string{
+		filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+			"pt-analysis", "risultati-anno-2025", "elenco-metodi.md"),
+		filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+			"pt-analysis", "risultati-anno-2025", "risultati-pt-2025.csv"),
+		filepath.Join(repoRoot, ".pipeline", "test-data", "scenarios",
+			"pt-analysis", "risultati-anno-2025", "storico-2023-2024.csv"),
+	}
+	allowed := map[string]bool{}
+	for _, p := range sources {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("fixture %q non leggibile: %v", p, err)
+		}
+		for code := range extractPCMCodes(string(b)) {
+			allowed[code] = true
+		}
+	}
+	if len(allowed) == 0 {
+		return nil, fmt.Errorf("nessun codice PCM-NN trovato nelle fixture")
+	}
+	return allowed, nil
+}
+
+func bodyCitaSoloCodiciMetodoDaInput(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	allowed, err := fixtureAllowedMetodiCodes()
+	if err != nil {
+		return c, err
+	}
+	cited := extractPCMCodes(content)
+	if len(cited) == 0 {
+		return c, fmt.Errorf("body non cita alcun codice metodo PCM-NN")
+	}
+	for code := range cited {
+		if !allowed[code] {
+			return c, fmt.Errorf("metodo %q citato ma NON presente nelle fixture (allucinazione)", code)
+		}
+	}
+	return c, nil
+}
+
+// reZScoreFuoriSoglia matcha esplicite menzioni di z-score con magnitudine
+// > 2 (zona attenzione) o > 3 (non soddisfacente). Heuristic: "z" / "Z"
+// seguito (eventualmente) da spazi/=/: e un numero con valore assoluto > 2.
+var reZScoreFuoriSoglia = regexp.MustCompile(`(?i)z[\s\-_]*=?\s*-?[23456]\.\d+|z[\s\-_]*=?\s*-?[3-9]\b`)
+
+func bodyIncludeAzioniImmediateZScore(c context.Context) (context.Context, error) {
+	s := getState(c)
+	content, err := s.readOutputFile()
+	if err != nil {
+		return c, err
+	}
+	lower := strings.ToLower(content)
+	hasAzioneTerm := strings.Contains(lower, "azione") || strings.Contains(lower, "azioni")
+	if !hasAzioneTerm {
+		return c, fmt.Errorf("body non parla di 'azioni' — atteso almeno una sezione azioni immediate")
+	}
+	// Riferimento esplicito a z-score elevato o sezione "fuori soglia"
+	hasOutOfSpec := strings.Contains(lower, "fuori soglia") ||
+		strings.Contains(lower, "non soddisfacente") ||
+		strings.Contains(lower, "questionabile") ||
+		reZScoreFuoriSoglia.MatchString(content)
+	if !hasOutOfSpec {
+		return c, fmt.Errorf("azioni non collegate a z-score fuori soglia / valutazione 'questionabile' o 'non soddisfacente'")
+	}
+	return c, nil
+}
+
+// --- canned fake Ollama bodies per F/G ---
+// SYNTHETIC TEST DATA - NOT REAL — pattern Fetta 2 LOW review fix: i body
+// sottostanti usano valori realistici (PCM-09, PT-2025-09, Maria Rossi…)
+// per simulare output L1-validabili, ma sono interamente FITTIZI.
+
+func cannedCompetenceGapBody() string {
+	return `## 1. Tecnici autorizzati ai metodi adiacenti
+
+Sulla base della matrice competenze, i tecnici con qualifica completa su PCM-09 (ICP-MS, spettrometria di massa) sono candidati naturali per PCM-12 IPA su sedimento (GC-MS, stessa famiglia):
+
+- **Maria Rossi** (RTS): autorizzata su PCM-09. Backup leadership tecnica.
+- **Luca Ferri** (tecnico senior): autorizzato su PCM-09. Esperienza pluriennale GC-MS.
+- **Roberto Lazzaro** (tecnico senior): autorizzato su PCM-09. Esperienza pluriennale.
+
+## 2. Tecnici non autorizzabili in priorità (gap troppo ampio)
+
+- **Anna Conti** (RAQ): solo PCM-01 e PCM-02 autorizzati. Non ha background spettrometria.
+- **Stefano Marchi, Laura Greco, Marco Bertoni, Davide Costa, Paola Conti, Chiara Esposito** (tecnici junior): nessuno autorizzato su PCM-09. Qualifica richiede prerequisiti spettrometria che non hanno.
+
+## 3. Piano formazione
+
+| Tecnico | Azione | Tempistica |
+|---|---|---|
+| Maria Rossi | Shadowing 1 settimana in laboratorio partner del gruppo (PCM-12 in routine) | Q1-2026 (2026-01-15 → 2026-01-22) |
+| Luca Ferri | Shadowing 1 settimana in laboratorio partner (alternativo Maria Rossi) | Q1-2026 (2026-02-01 → 2026-02-08) |
+| Roberto Lazzaro | Sessione interna 16h aula + 8h pratica preparazione sedimento | Q1-2026 (entro 2026-02-29) |
+| Giulio Bianchi | Verifica intermedia PCM-09 (chiude in-qualifica → autorizzato) | Q1-2026 (entro 2026-02-29) |
+
+Verifica intermedia di qualifica PCM-12 con esecuzione di 3 campioni sotto supervisione: target completamento 2026-02-28. Messa in routine PCM-12 dal 2026-03-01.
+
+## 4. Autorizzazioni da rilasciare o aggiornare
+
+- **Rilasciare PCM-12** a: Maria Rossi, Luca Ferri, Roberto Lazzaro (dopo 3 campioni qualifica).
+- **Aggiornare PCM-09** da "in-qualifica" a "autorizzato" per Giulio Bianchi e Sara Romano (dopo verifica intermedia Q1-2026).
+- **Audit interno PCM-12** entro 2026-04-30 (90 giorni dopo qualifica iniziale).
+- **Domanda estensione ACCREDIA** per PCM-12 da sottomettere entro 2026-06-01 (vincolo gara).`
+}
+
+func cannedPTAnalysisBody() string {
+	return `## 1. Riassunto esecutivo
+
+Anno 2025: 12 partecipazioni a PT con 9 metodi accreditati coperti. Risultati: 10 soddisfacenti, 1 questionabile (PT-2025-04, PCM-09 Cd, z=-2.4), 1 non soddisfacente (PT-2025-09, PCM-08 tensioattivi, z=3.2). Performance complessiva 83% conforme — sotto target interno 95%. Due metodi richiedono indagine e azione correttiva (PCM-08, PCM-09 nel parametro Cd).
+
+## 2. Classificazione rischio per metodo
+
+- **PCM-08 (tensioattivi MBAS)**: rischio **alto**. Trend negativo confermato (storico PT-2024-09 z=2.1 questionabile, PT-2025-09 z=3.2 non soddisfacente). Indagine causale in corso. Azione correttiva con possibile cambio fornitore reagente.
+- **PCM-09 (metalli pesanti, parametro Cd)**: rischio **medio**. Storico PT-2024-03 z=-1.6, PT-2025-04 z=-2.4. Trend in deriva ma non ancora critico. PT-2025-11 ha riconfermato z=-1.8 in zona attenzione su Pb correlato.
+- **PCM-04 (COD), PCM-05 (BOD5), PCM-01 (conducibilità), PCM-02 (pH), PCM-03 (cloruri), PCM-06 (solidi sospesi), PCM-11 (TOC)**: rischio **basso**. Tutti |z| ≤ 1.2 nel 2025.
+- **PCM-12 (IPA su sedimento)**: rischio **basso** ma campionatura minima (1 sola partecipazione PT-2025-08, z=0.5). Servono più dati di trend.
+
+## 3. Trend storico (2023-2025)
+
+PCM-08 tensioattivi: deriva consolidata in 3 anni (2023 z=-1.2, 2024 z=2.1, 2025 z=3.2). Pattern non casuale.
+PCM-09 Pb: stabile (2023 z=0.8, 2024 z=1.4, 2025 z=1.9 / -1.8). Lieve drift positivo ma sotto soglia.
+PCM-09 Cd: stabile-deriva (2023 z=-0.5, 2024 z=-1.6, 2025 z=-2.4). Drift negativo da monitorare.
+Altri metodi: stabilità conforme.
+
+## 4. Azioni immediate
+
+- **PT-2025-09 (PCM-08, z=3.2 non soddisfacente, fuori soglia)**: aprire NC + indagine causale entro 30 giorni. Verifica lotto reagente MBAS, taratura spettrofotometro, qualifica operatore. Azione correttiva con re-test in PT prossimo del 2026-Q1.
+- **PT-2025-04 (PCM-09 Cd, z=-2.4 questionabile)**: verifica intermedia ICP-MS-C entro 15 giorni. Test su materiale di riferimento certificato. Se non conforme: re-taratura completa.
+- **PCM-12 IPA sedimento**: pianificare 2-3 partecipazioni PT in 2026 per consolidare baseline (servono almeno 5 punti storici per trend statisticamente significativo).
+- **Sorveglianza generale**: KPI conforme PT al 95% disatteso (83%). Riportato in riesame direzione Q1-2026.`
 }

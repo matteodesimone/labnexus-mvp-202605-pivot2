@@ -33,10 +33,23 @@ scenarios/
 │   └── risk-register-sintetico/  # Fetta 2 — Capability D (FR-16): risk register + scope audit
 │       ├── risk-register.csv         # 18 voci di rischio per area ISO 17025
 │       └── scope-audit.md            # scope dell'audit interno (oggetto, riferimenti, modalità)
-└── equipment-alert/
-    └── scheda-pmt-sintetica/   # Fetta 2 — Capability E (FR-17): scheda apparecchiatura + evento
-        ├── scheda-apparecchiatura.md   # T-007 con metodi associati (PCM-01/04/09)
-        └── evento.md                   # certificato di taratura rientrato con NC su intervallo
+├── equipment-alert/
+│   └── scheda-pmt-sintetica/   # Fetta 2 — Capability E (FR-17): scheda apparecchiatura + evento
+│       ├── scheda-apparecchiatura.md   # T-007 con metodi associati (PCM-01/04/09)
+│       └── evento.md                   # certificato di taratura rientrato con NC su intervallo
+├── competence-gap/
+│   └── matrice-sintetica/      # Fetta 3 — Capability F (FR-18): matrice competenze + procedura nuova
+│       ├── matrice-competenze.csv      # 12 tecnici × 10 metodi (autorizzato/non-autorizzato/in-qualifica)
+│       └── procedura-nuova.md          # PCM-12 IPA sedimento da introdurre Q1-2026
+├── pt-analysis/
+│   └── risultati-anno-2025/    # Fetta 3 — Capability G (FR-19): PT 2025 + metodi + storico per trend
+│       ├── risultati-pt-2025.csv       # 12 circuiti PT con z-score (1 questionabile, 1 non soddisfacente)
+│       ├── elenco-metodi.md            # 9 metodi accreditati + 1 in procedimento (PCM-12)
+│       └── storico-2023-2024.csv       # 9 z-score storici sui metodi peggiori per trend statistico
+└── feat-meta/
+    └── casi-inventati/         # Fetta 3 — feat-meta (FR-22): YAML prodotti da Claude esterno via meta-prompt
+        ├── README.md                   # istruzioni operative per Matteo (3 casi semplice/medio/ambiguo)
+        └── caso-{1-semplice,2-medio,3-ambiguo}.yml  # da committare DOPO esecuzione manuale Claude
 ```
 
 ### Note sulle fixture di Fetta 2
@@ -47,6 +60,12 @@ interni con rilievi proporzionati, PT con z-score realistici (≤|3|), apparecch
 associati e tracciabilità. I nomi sono fittizi (Maria Rossi, Giulio Bianchi…) ma riconoscibili al
 laboratorio. Se Denis consegna materiali reali anonimizzati prima dello shakedown di una capability,
 queste fixture vanno sostituite capability-per-capability (decisione TD-1).
+
+### Note sulle fixture di Fetta 3
+
+- **competence-gap**: matrice 12 tecnici × 10 metodi PCM con valori `{autorizzato, non-autorizzato, in-qualifica}`. Riusa i nomi sintetici di Fetta 2 (Maria Rossi/Giulio Bianchi/Anna Conti/Luca Ferri + altri 8 plausibili) per continuità narrativa. La procedura nuova introduce PCM-12 IPA sedimento (metodo realmente in roadmap accreditamento per molti laboratori di chimica acque).
+- **pt-analysis**: estende e differenzia i risultati PT di review-pack (Fetta 2) per coprire un trend 2023-2025 sui metodi peggiori (PCM-08 tensioattivi, PCM-09 metalli Cd) — necessario per FR-19 "trend storico". 1 PT non soddisfacente (z=3.2) per esercitare le azioni immediate fuori soglia.
+- **feat-meta/casi-inventati/**: la cartella ospita i 3 YAML prodotti DA CLAUDE ESTERNO via meta-prompt FR-22. Al test-scaffold contiene solo `README.md` con istruzioni. I 3 `caso-*.yml` vengono committati DOPO esecuzione manuale di Matteo (FUORI pipeline AI). Il test Go `internal/profile/profile_meta_cases_test.go` cicla quei file e li valida contro KB reale.
 
 ## Origine dei dati reali (non duplicati qui — referenze)
 

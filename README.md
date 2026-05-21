@@ -27,6 +27,12 @@ labnexus list                         # elenca i profili installati
 labnexus describe revisione           # mostra il profilo (kb_files, modello, ecc.)
 labnexus validate revisione           # controlla lo schema YAML del profilo
 labnexus check revisione --input ./test1   # dry-run: parsing + stima token, no LLM
+labnexus check revisione --input ./test1 --show-prompt   # dry-run + stampa prompt composto
+                                                          # ⚠ output contiene contenuti dei kb_files
+                                                          # e degli input (potenziali PII del SGQ).
+                                                          # In non-TTY emette warning su stderr.
+                                                          # Solo per debug interno — NON condividere
+                                                          # l'output su canali non controllati.
 labnexus run --profile revisione --input ./test1 --output ./out
 ```
 

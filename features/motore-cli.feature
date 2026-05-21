@@ -100,6 +100,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
     E stdout mostra un user_message che inizia con il trigger_prompt
     E user_message contiene la sezione "## File di input"
     E user_message contiene per ogni file di input un blocco preceduto da "--- FILE: <nome> ---"
+    E stderr avvisa che l'output contiene PII potenziali da non condividere
 
   # --- FR-6: stima token ---
 

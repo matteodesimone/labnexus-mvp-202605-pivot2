@@ -1,7 +1,7 @@
 ---
 id: 005
 priority: P2
-status: ready
+status: done
 source: review
 created: 2026-05-20
 file: cmd/labnexus/main.go (subcommand check)

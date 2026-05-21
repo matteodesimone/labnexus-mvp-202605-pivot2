@@ -6,10 +6,13 @@ package runner
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"golang.org/x/term"
 
 	"github.com/labnexus/labnexus/internal/input"
 	"github.com/labnexus/labnexus/internal/output"
@@ -68,7 +71,7 @@ func Run(cfg Config) (*Result, error) {
 		return nil, err
 	}
 	if cfg.ShowPrompt {
-		printPrompt(composed)
+		printPromptWithPIIWarning(composed, os.Stdout, os.Stderr, isStdoutTTY())
 	}
 	if cfg.DryRun {
 		log.Info("dry-run: nessuna chiamata LLM eseguita (%d token stimati)", check.Tokens)
@@ -158,12 +161,34 @@ func checkTokensAgainstContext(p *profile.Profile, composed *prompt.Composed, lo
 	return check, nil
 }
 
-// printPrompt stampa il prompt composto su stdout (FR-5, flag --show-prompt).
-func printPrompt(composed *prompt.Composed) {
-	fmt.Println("=== SYSTEM MESSAGE ===")
-	fmt.Println(composed.System)
-	fmt.Println("\n=== USER MESSAGE ===")
-	fmt.Println(composed.User)
+// piiWarning è il messaggio di avviso emesso su stderr quando
+// `labnexus check --show-prompt` è eseguito in modalità non-TTY (stdout
+// pipato a file/altro comando). Bugfix .pipeline/bugs/show-prompt-pii-exposure.md
+// — protegge contro copia/paste accidentale di output con PII degli SGQ.
+const piiWarning = `⚠  --show-prompt: output contiene contenuti dei kb_files e degli input,
+   inclusi potenziali PII / dati personali del SGQ (nomi tecnici, codici
+   personali, riferimenti a colleghi). NON condividere su canali non
+   controllati (ticket di supporto, Slack, log condivisi). Per debug
+   interno solo.`
+
+// printPromptWithPIIWarning stampa il prompt composto su `stdout`. Se
+// `stdoutIsTTY` è false (l'utente sta ridirezionando l'output verso un
+// file / pipe / cattura), emette PRIMA un warning su `stderr` per
+// proteggere contro copia/paste accidentale di PII. Bugfix #005.
+func printPromptWithPIIWarning(composed *prompt.Composed, stdout, stderr io.Writer, stdoutIsTTY bool) {
+	if !stdoutIsTTY {
+		fmt.Fprintln(stderr, piiWarning)
+	}
+	fmt.Fprintln(stdout, "=== SYSTEM MESSAGE ===")
+	fmt.Fprintln(stdout, composed.System)
+	fmt.Fprintln(stdout, "\n=== USER MESSAGE ===")
+	fmt.Fprintln(stdout, composed.User)
+}
+
+// isStdoutTTY ritorna true se os.Stdout è un terminale interattivo.
+// Usato per decidere se emettere il PII warning di `--show-prompt`.
+func isStdoutTTY() bool {
+	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 // streamAndWriteOutput chiama il provider, drena lo stream e scrive il file di output.

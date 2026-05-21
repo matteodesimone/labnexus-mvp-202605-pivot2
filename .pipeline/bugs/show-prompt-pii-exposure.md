@@ -1,10 +1,30 @@
 ---
 slug: show-prompt-pii-exposure
 severity: MEDIUM
-status: open
+status: fixed
 opened_at: 2026-05-20
+fixed_at: 2026-05-21
 opened_by: /v-review Fetta 2 (Mistral loop 1 security, Codex loop 2 privacy)
 discovered_via: external review (multi-LLM)
+fix: |
+  Opzione A (soft mitigation) implementata: in modalità non-TTY (stdout pipato
+  a file/pipe), labnexus check --show-prompt ora emette un warning prominente
+  su stderr PRIMA del prompt composto. Il warning menziona PII e sconsiglia
+  la condivisione su canali non controllati. In modalità TTY (utente vede
+  a video) nessun warning extra (assume informed consent).
+  Refactor: printPrompt(composed) → printPromptWithPIIWarning(composed,
+  stdout, stderr, stdoutIsTTY io.Writer/bool). isStdoutTTY() helper via
+  golang.org/x/term.
+  Cobra help text del flag --show-prompt aggiornato. README aggiornato con
+  warning prominente nella sezione Quick start.
+  Opzione B (flag --redact) lasciata a Sprint 2 quando il prodotto diventerà
+  multi-utente.
+test: |
+  - internal/runner/show_prompt_warning_test.go (unit, in-package): 3 test
+    (EmitsWarningOnNonTTY, NoWarningOnTTY, PromptOrderingNonTTY).
+  - features/motore-cli.feature scenario "check produce un'anteprima del
+    prompt composto" esteso con step "stderr avvisa che l'output contiene
+    PII potenziali da non condividere".
 ---
 
 # Bug — `labnexus check --show-prompt` può esporre PII via stdout/copy-paste

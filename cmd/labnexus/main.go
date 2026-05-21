@@ -277,7 +277,7 @@ func newCheckCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().String("input", "", "cartella di input — obbligatoria")
-	cmd.Flags().Bool("show-prompt", false, "stampa il prompt composto su stdout")
+	cmd.Flags().Bool("show-prompt", false, "stampa il prompt composto su stdout (⚠ contiene contenuti dei kb_files + input, potenziali PII; in non-TTY emette warning su stderr)")
 	_ = cmd.MarkFlagRequired("input")
 	return cmd
 }

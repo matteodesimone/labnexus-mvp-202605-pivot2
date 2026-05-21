@@ -231,6 +231,7 @@ func registerSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^il body cita i metodi di prova specifici associati all'apparecchiatura$`, bodyCitaMetodiAssociati)
 	ctx.Step(`^il body include un ragionamento causale tra stato apparecchiatura e impatto metodi$`, bodyRagionamentoCausale)
 	ctx.Step(`^il frontmatter contiene i default del profilo "([^"]+)"$`, fmContieneDefaultDelProfilo)
+	ctx.Step(`^stderr avvisa che l'output contiene PII potenziali da non condividere$`, stderrAvvisaPIIPotenziali)
 }
 
 // ============================================================
@@ -1911,6 +1912,25 @@ func fmContieneDefaultDelProfilo(c context.Context, profilo string) (context.Con
 // (es. "poiché", "perché"). Go `\b` è ASCII-only, quindi usiamo lookaround
 // esplicito via classi Unicode `\p{L}` (lettera). L2 fix di review loop 1.
 var reCausalConnective = regexp.MustCompile(`(?i)(^|[^\p{L}])(poiché|quindi|perché|se|implica)([^\p{L}]|$)`)
+
+// stderrAvvisaPIIPotenziali (bugfix #005): in modalità non-TTY (stdout
+// pipato / file), `labnexus check --show-prompt` deve emettere un warning
+// PII su stderr PRIMA del prompt composto. Il warning deve menzionare
+// "PII" / "dati personali" o equivalente E sconsigliare la condivisione.
+func stderrAvvisaPIIPotenziali(c context.Context) (context.Context, error) {
+	s := getState(c)
+	lower := strings.ToLower(s.stderr)
+	hasPIITerm := strings.Contains(lower, "pii") ||
+		strings.Contains(lower, "dati personali") ||
+		strings.Contains(lower, "personal data")
+	hasShareTerm := strings.Contains(lower, "condivider") ||
+		strings.Contains(lower, "non condivider") ||
+		strings.Contains(lower, "do not share")
+	if !hasPIITerm || !hasShareTerm {
+		return c, fmt.Errorf("stderr deve avvisare su PII e sconsigliare la condivisione, got:\n%s", s.stderr)
+	}
+	return c, nil
+}
 
 func hasCausalConnective(body string) bool {
 	return reCausalConnective.MatchString(body)

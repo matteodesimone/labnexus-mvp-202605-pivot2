@@ -4,7 +4,7 @@
 profilo: competence-gap
 descrizione: Competence Gap Report — gap competenze tecnici per procedura/metodo nuovo, con piano formazione e autorizzazioni da rilasciare/aggiornare
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -44,4 +44,3 @@ output:
     tipo: competence_gap_report
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: competence-gap
-    locale: true

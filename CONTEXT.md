@@ -5,9 +5,9 @@
 
 ## Project
 
-- **Name**: LabNexus (eseguibile macOS/Linux) — Sprint 1 del progetto AICertus
-- **Description**: CLI nativo Go che esegue una capability ispettiva alla volta del modello AICertus chiamando un LLM locale (Qwen 3 via Ollama) o, come canale di sviluppo, EUrouter
-- **Type**: prove-out (Sprint 1 di pacchetto S — 20 gettoni, 3 settimane)
+- **Name**: LabNexus (eseguibile macOS/Linux) — Sprint 1 (chiuso AI-side) + Sprint 1.5 (refactor pre-handoff Denis, in corso) del progetto AICertus
+- **Description**: CLI nativo Go che esegue una capability ispettiva alla volta del modello AICertus. Sprint 1.5 default: chiama Qwen 3 via EUrouter (cloud EU-GDPR). Opzionale: Qwen 3 locale via Ollama.
+- **Type**: prove-out (Sprint 1 di pacchetto S — 20 gettoni, 3 settimane; Sprint 1.5 = refactor offerto dal CTO, 0 gettoni cliente)
 - **Stack**: Go 1.22+ (cli-tool domain)
 - **Domain**: cli-tool
 
@@ -93,13 +93,13 @@ Layered (`.pipeline/standards/`):
 - Motore CLI completo (run/list/describe/check/validate) con cobra
 - 9 package `internal/` (profile/input/prompt/tokens/provider×3/output/runlog/runner/tui)
 - 2 profili shippable: `revisione` (Capability A) + `rilievi` (Capability B)
-- Bundle macOS `labnexus.app` (build-mac.sh) + binario Linux/amd64 (build-linux.sh)
+- Binary CLI puro `labnexus` cross-platform (build-mac.sh per darwin/arm64 + build-linux.sh per linux/amd64) + launcher `labnexus.command` 2-righe per doppio click macOS (Sprint 1.5.A post-pivot-3, rimosso bundle `.app`)
 - KB-ispettore symlink alla versione completa in `docs/piano_iniziale/materiali-dominio/`
 - Test: tutti i package internal coperti + BDD acceptance 40/43 passing (3 pending, 10 @manual hardware-only)
 
 ### In Progress
 
-Fetta 1 in attesa di shakedown reale su Ollama+Qwen3.6 sull'hardware del CTO (Linux/WSL2 con NVIDIA RTX 4090) e validazione formale di Denis (L2 per Capability A vs golden Test 1 e B vs template CAPA Pack).
+Sprint 1 AI-side chiuso 2026-05-21. Sub-fetta 1.5.A (pivot 3 + CLI puro) implementata e in review. Shakedown reale + L2 Denis (Capability A vs golden Test 1 e B vs template CAPA Pack) ora gira su EUrouter (provider default post-pivot-3). Ollama resta opzione di sviluppo CTO su hardware Linux/WSL2 con NVIDIA RTX 4090.
 
 ### Planned
 

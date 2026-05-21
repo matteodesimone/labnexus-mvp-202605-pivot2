@@ -9,15 +9,26 @@ Stack: go-cli
 - **What**: Eseguibile macOS nativo (Go) che esegue una capability ispettiva alla volta del modello AICertus, chiamando Qwen 3 in locale via Ollama. A corredo, un prompt meta per generare nuovi profili in autonomia e un report di validazione di Qwen sulle 7 capability.
 - **Why**: rispondere alla domanda contrattuale dello Sprint 1 — *un modello locale (Qwen 3 via Ollama, context 128k) produce output di qualità accettabile per un QM esperto sulle capability LLM-critical del sistema AICertus?* — prima di investire 12-18 mesi nella costruzione del sistema completo.
 - **Who**: utente operativo è **Denis Brazzo** (QM esperto SGQ + ispettore ACCREDIA, laboratorio del cliente). Stakeholder cliente: **Stefano Fiorina**. CTO interno: **Matteo De Simone**.
-- **Stage**: Sprint 1 in avvio sviluppo motore + profili, **post-pivot 2**. Pacchetto da 20 gettoni / 3 settimane di calendario, 8 gettoni già spesi, ~10 giorni lavorativi residui. Due capability (A revisione, B rilievi) già validate sul modello in chat manuale Ollama prima dell'avvio sviluppo.
+- **Stage**: Sprint 1 chiuso AI-side 2026-05-21; Sprint 1.5 (refactor pre-handoff Denis) **in corso**, sub-fetta 1.5.A "pivot 3 + CLI puro" implementata e in review.
+
+### Sprint 1.5 amendments (post-pivot-3 + decommissione bundle macOS)
+
+> **Queste decisioni invalidano alcune voci di "Architecture Overview" e "Key Decisions Already Made" più sotto.** Le voci originali sono mantenute per tracciabilità storica; in caso di conflitto, gli amendments di Sprint 1.5 prevalgono.
+
+- **Provider default invertito**: post-pivot-3, il deliverable per Denis usa **`provider: eurouter` (cloud EU-GDPR via `api.eurouter.ai`) di default**. Motivazione: Denis non dispone di hardware sufficiente per Ollama locale (Qwen 3 36B MoE). Cliente (Stefano Fiorina) formalmente informato e d'accordo; transito dati reali del SGQ a EUrouter approvato esplicitamente. DPA contrattuale è onere lato cliente, non blocker tecnico per la consegna. Ollama resta provider opzionale via flag/env/profile per utenti con hardware adeguato.
+- **Gate cloud rimosso**: la variabile `LABNEXUS_ALLOW_CLOUD_PROVIDER` + la funzione `requireLoopbackOrCloudGate` sono stati decommissionati da `internal/provider/provider.go` in sub-fetta 1.5.A. La selezione provider (`Select`) ora si limita alla precedenza flag > env > profilo (FR-12 invariato), senza gate runtime di approvazione. Vedi `.pipeline/bugs/privacy-eurouter-gate-mancante.md` (status: `intentional_deviation_post_pivot_3`).
+- **Bundle macOS `.app` decommissionato**: il deliverable Sprint 1.5 è un **binary CLI puro** standalone (`labnexus-darwin-arm64`) + un launcher minimale `scripts/labnexus.command` (2 righe bash) per il doppio click dal Finder. Eliminati: `osascript`, `Info.plist`, `CFBundleExecutable`, drag&drop di cartella sull'icona `.app`, wrapper bash. Lo zip di consegna include i due file al root insieme ai profili e KB. Workaround Gatekeeper: `xattr -d com.apple.quarantine` su entrambi i file (operazione una tantum, documentata in README + USER-GUIDE).
+- **NFR-7 ribaltato**: l'affermazione "nessun dato esce dalla macchina locale" NON è più vera per il deliverable Sprint 1.5. Il marcatore audit `output.frontmatter_default.locale` nei 7 profili **deve riflettere il provider effettivo a runtime**, non essere hardcoded a `true`.
 
 ### Architecture Overview
 
-Singolo binario Go nativo per macOS Apple Silicon. Tre modalità d'uso: doppio click (dialog macOS interattivo via `osascript`), drag&drop di cartella sull'icona `.app`, riga di comando. Per ciascuna delle 7 capability esiste un file di profilo YAML (`profili/<nome>.yml`) che dichiara: file della KB-ispettore da iniettare come system context, `trigger_prompt` come user prompt, provider e parametri. A ogni esecuzione la KB-ispettore viene **riletta dal filesystem** (no embedding, no RAG, no DB). Provider primario Ollama su `localhost:11434`; provider secondario EUrouter (gateway EU OpenAI-compatible, GDPR) come strumento di debug interno, **non operativo sui dati reali**. Output markdown in cartella dedicata con frontmatter YAML. Streaming con progress bar.
+Singolo binario Go (cross-platform `darwin/arm64` + `linux/amd64`) lanciabile da terminale o, su macOS, anche con doppio click su `scripts/labnexus.command` (launcher bash 2 righe che apre Terminal nella cartella dello zip). Per ciascuna delle 7 capability esiste un file di profilo YAML (`profili/<nome>.yml`) che dichiara: file della KB-ispettore da iniettare come system context, `trigger_prompt` come user prompt, provider e parametri. A ogni esecuzione la KB-ispettore viene **riletta dal filesystem** (no embedding, no RAG, no DB). Provider default Sprint 1.5: **EUrouter cloud EU-GDPR** su `api.eurouter.ai` (SSE OpenAI-compatible); provider opzionale Ollama su `localhost:11434` (NDJSON streaming) per utenti con hardware adeguato. Output markdown in cartella dedicata con frontmatter YAML. Streaming con progress bar.
+
+> **Storico (pre-Sprint-1.5):** il deliverable Sprint 1 era un bundle `.app` macOS con tre modalità (doppio click + `osascript` dialog, drag&drop di cartella sull'icona, riga di comando) e provider locale Ollama. Decommissionato in sub-fetta 1.5.A.
 
 ### Key Decisions Already Made
 
-- **Locale mandatory** — tutta l'elaborazione AI gira sul Mac del cliente, no cloud. È la domanda contrattuale stessa post-pivot 2, non un'ottimizzazione.
+- **Locale mandatory** ~~tutta l'elaborazione AI gira sul Mac del cliente, no cloud~~ — **invalidato dal pivot 3 (Sprint 1.5, 2026-05-21)**: vedi "Sprint 1.5 amendments" sopra. La voce è preservata per tracciabilità storica. Domanda contrattuale ricalibrata in riunione Fiorina + Brazzo + CTO post-Sprint-1 (Denis non ha hardware Ollama).
 - **Cross-platform Go: due target `darwin/arm64` + `linux/amd64`** — `darwin/arm64` è il deliverable per Denis (macOS Apple Silicon), `linux/amd64` è l'ambiente di sviluppo del CTO (Windows WSL2 con NVIDIA RTX 4090 24GB per Ollama accelerato). Stesso codice, due artefatti via `GOOS`/`GOARCH`. Niente UI web, niente database, niente runtime esterni da installare.
 - **KB-ispettore scritta da Denis, NON da noi** — i file della KB sono trattati come fonte di verità sul tono ispettivo e i requisiti ISO 17025. L'unico testo scritto da noi per profilo è il `trigger_prompt` (5-10 righe, min 50 caratteri). Selezioniamo quali file iniettare, non li riscriviamo.
 - **Ordine di sviluppo dei 7 profili è vincolato e non negoziabile** (rischio crescente, per separare problemi del motore da problemi del modello):
@@ -32,7 +43,7 @@ Singolo binario Go nativo per macOS Apple Silicon. Tre modalità d'uso: doppio c
 - **Test indipendente di tenuta su context lungo è fuori eseguibile** — si esegue in chat manuale Ollama per isolare la variabile "context lungo" dal codice. Eseguito dopo i primi 2-3 profili.
 - **No firma Apple Developer** in Sprint 1 — procedura Gatekeeper manuale documentata nel README. Investimento 100€/anno valutabile in Sprint 2.
 - **No embedding/RAG/vector DB** — la KB-ispettore è abbastanza piccola da entrare nel context come prompt. No chunking automatico: gli input dello sprint sono dimensionati per stare dentro 128k.
-- **Dual-provider operativo durante lo sviluppo, Ollama-only nel deliverable** — su Linux/WSL2 del CTO si usa `provider: ollama` con accelerazione GPU; su macOS del CTO (dove Ollama non è disponibile) si usa `provider: eurouter` su dati sintetici o golden file già discussi col cliente. Il binario consegnato a Denis usa `provider: ollama` (vincolo contrattuale post-pivot 2). Restrizione invariata: **nessun dato reale del SGQ di Denis su EUrouter senza approvazione esplicita**. Override del provider via flag `--provider` o env var `LABNEXUS_PROVIDER`.
+- **Dual-provider** ~~Ollama-only nel deliverable~~ — **invalidato dal pivot 3 (Sprint 1.5)**: il deliverable Denis ora usa `provider: eurouter` (cloud EU-GDPR) di default; Ollama resta provider opzionale. Restrizione "nessun dato del SGQ a EUrouter senza approvazione esplicita" **ribaltata** post-pivot-3: Stefano Fiorina ha formalmente approvato il transito dei dati reali a EUrouter. Vedi "Sprint 1.5 amendments" sopra. Override del provider via flag `--provider` o env var `LABNEXUS_PROVIDER` invariato.
 - **ISO 17034 fuori scope** dello sprint per decisione del cliente: KB-ispettore copre 17025 in modo solido, 17034 non è formalizzato. Tutti gli esperimenti restano su perimetro **ISO 17025**.
 - **Stabilità di scope sullo Sprint 1** — il cliente ha accettato il principio: nessun nuovo ramo di sviluppo senza motivazione esplicita basata su dati raccolti.
 
@@ -69,7 +80,7 @@ Singolo binario Go nativo per macOS Apple Silicon. Tre modalità d'uso: doppio c
 - **Name**: LabNexus (eseguibile) — Sprint 1 del progetto AICertus
 - **Client**: LabNexus s.r.l. (Stefano Fiorina, Denis Brazzo)
 - **Quality metric**: per ciascuno dei 7 esperimenti, **valutazione formale di Denis** secondo griglia condivisa (allucinazioni, qualità ispettiva, profondità, tenuta, utilizzabilità pratica). Esito per capability: *validata* / *validata con riserva* / *non validata*. Per i profili `revisione` e `rilievi`, criterio aggiuntivo: output qualitativamente paragonabile ai golden file dei Test 1 e 2 manuali approvati da Denis.
-- **Scale**: utente singolo (Denis) su laptop macOS Apple Silicon del laboratorio. Dati on-device, no rete.
+- **Scale**: utente singolo (Denis) su laptop macOS Apple Silicon del laboratorio. Post-pivot-3 (Sprint 1.5): rete attiva per chiamate a `api.eurouter.ai` (provider default). Dati on-device solo se l'utente abilita esplicitamente il provider opzionale Ollama.
 
 ## Project Type
 
@@ -96,7 +107,7 @@ UI_COMPONENTS: none
 
 ## Privacy & Data Handling
 
-- **Personal data collected**: i dati operativi del SGQ di Denis (procedure, NC, rapporti, matrici competenze, risultati PT) **possono contenere riferimenti a persone** del laboratorio. **Vincolo: i dati non escono dalla macchina locale**. L'eseguibile gira offline. EUrouter NON viene usato sui dati reali del SGQ senza approvazione esplicita del cliente (in Sprint 1 resta strumento di debug interno su dati sintetici/anonimizzati).
+- **Personal data collected**: i dati operativi del SGQ di Denis (procedure, NC, rapporti, matrici competenze, risultati PT) **possono contenere riferimenti a persone** del laboratorio. **Vincolo storico Sprint 1**: i dati non escono dalla macchina locale (Ollama). **Vincolo aggiornato Sprint 1.5** post-pivot-3 (2026-05-21): cliente (Stefano Fiorina) ha formalmente approvato il transito dei dati reali a `api.eurouter.ai` (cloud EU-GDPR). EUrouter è ora il provider default; DPA contrattuale è onere lato cliente. Ollama resta opzionale per utenti con hardware adeguato.
 - **Secrets**: `EUROUTER_API_KEY` in env var, **mai hardcoded, mai committato**.
 
 ## Project-Specific Conventions
@@ -105,7 +116,7 @@ UI_COMPONENTS: none
   - `profili/<nome>.yml` — file di configurazione per capability
   - `KB-ispettore/` — knowledge base di Denis (path nei `kb_files:` dei profili sono relativi qui)
 - **Nome file di output**: `<output_dir>/<timestamp>_<profile>_<input_descriptor>.md` con frontmatter YAML (data esecuzione, profilo, modello, provider, durata, token stimati, file di input).
-- **Provider names ammessi**: `ollama` | `eurouter`. Default Sprint 1: `ollama`.
+- **Provider names ammessi**: `ollama` | `eurouter`. Default Sprint 1: `ollama`. **Default Sprint 1.5+ (post-pivot-3): `eurouter`**. Vedi "Sprint 1.5 amendments".
 - **Modello default**: stringa `qwen3.6` (tag e quantizzazione esatti confermati al primo `ollama list` su ogni hardware target). Default temperature `0.9`, `max_tokens 8192`, `context_window 128000`. Parametri affinati durante shakedown del profilo `revisione`.
 - **Comandi CLI**: `labnexus run --profile <name> --input <dir> --output <dir>` (principale); `list`, `describe <profile>`, `check <profile> --input <dir>` (dry-run), `validate <profile>` (controllo schema YAML, usato anche dal prompt meta).
 - **Stima token**: approssimazione `char_count / 4`. Warning a 70% del `context_window`, **errore esplicito** a 100% (non chiamare il provider).
@@ -143,7 +154,7 @@ Tutto ciò che segue è **dichiaratamente fuori Sprint 1**. Materiale prezioso, 
 - **Modifica file SGQ originale** — lettura input in sola lettura, scrittura solo nella cartella output.
 - **Sostituzione del giudizio del QM** — ogni output è bozza, etichettata come da approvare manualmente.
 - **ISO 17034** — fuori scope dello Sprint 1 per decisione di Denis (KB non formalizzata).
-- **Confronto in produzione con Claude o altri provider** — EUrouter resta facility di debug interno.
+- **Confronto in produzione con Claude o altri provider** — ~~EUrouter resta facility di debug interno~~ **(invalidato Sprint 1.5: EUrouter è ora provider default deliverable, vedi amendments).** Resta out-of-scope il confronto con Claude direttamente o con provider che non siano `ollama` o `eurouter`.
 - **Aggiunta di nuove capability oltre le 7** — è attività di Sprint 2, anche se il prompt meta abilita Denis a esplorare candidati in autonomia tra sprint (CTO resta nel loop per validazione tecnica e messa in produzione).
 - **Più di un input al lancio**, retry intelligente, sandbox/permessi avanzati, chunking automatico se input supera context.
 - **Test indipendente di tenuta su context lungo** — gestito separatamente dal CTO in chat manuale Ollama, fuori dal codice dell'eseguibile e fuori dal budget gettoni di sviluppo.
@@ -151,9 +162,9 @@ Tutto ciò che segue è **dichiaratamente fuori Sprint 1**. Materiale prezioso, 
 
 ## Deploy
 
-- **Target**: singolo file zip contenente `labnexus.app` (bundle macOS Apple Silicon non firmato), 7 file profilo YAML, copia controllata della KB-ispettore al momento della consegna, README di una pagina, esempi di input per ciascuna capability.
-- **Environments**: dev locale (CTO, macOS Apple Silicon) → consegna su laptop di Denis (macOS Apple Silicon). Niente staging, niente cloud.
-- **CI/CD**: nessuna pipeline CI/CD. Build locale (`go build -o labnexus.app/Contents/MacOS/labnexus`). Distribuzione zip manuale.
+- **Target Sprint 1.5+**: singolo file zip contenente il binary CLI puro `labnexus` (Mach-O `darwin/arm64` non firmato), il launcher `labnexus.command` (2 righe bash per doppio click Finder), 7 file profilo YAML, copia controllata della KB-ispettore al momento della consegna, README di una pagina, deliverable meta-prompt (`docs/meta-prompt-genera-profilo.md` + `docs/guida-meta-prompt-denis.md`), esempi di input per ciascuna capability. **Storico Sprint 1**: target era `labnexus.app` bundle macOS (decommissionato in sub-fetta 1.5.A).
+- **Environments**: dev locale (CTO, macOS Apple Silicon + Linux/WSL2) → consegna su laptop di Denis (macOS Apple Silicon). Niente staging. Post-pivot-3 (Sprint 1.5): rete attiva sul laptop di Denis per chiamate al provider default `api.eurouter.ai`.
+- **CI/CD**: nessuna pipeline CI/CD. Build locale via `make build-mac` / `bash scripts/build-mac.sh` (singolo `go build` cross-compile, niente bundle). Distribuzione zip manuale.
 - **Procedura Gatekeeper**: documentata nel README (control-clic → "Apri" → conferma, una sola volta).
 
 ## Tooling

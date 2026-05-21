@@ -1,0 +1,29 @@
+# SAMPLE-_labnexus.toml
+# Esempio DRAFT del metadata per-cartella di Sprint 1.5.C (FR-26).
+# Questo file vive DENTRO ogni cartella `lavori/<X>/` e identifica come
+# `labnexus jobs` deve trattare quella cartella (quale profilo usare,
+# eventualmente quale file di prompt usare al posto del trigger_prompt inline).
+#
+# Auto-discovery: `labnexus jobs` scansiona `lavori/*/`, legge questo file,
+# costruisce la lista dei jobs disponibili al volo.
+
+# --- Profilo da usare (obbligatorio) ---
+
+# Nome del profilo (deve esistere in profili/<nome>.toml).
+profile = "revisione"
+
+# --- Trigger prompt da file (opzionale, indirezione FR-16) ---
+
+# Path relativo a questa cartella. Se setted, il contenuto del file (RTF, TXT, MD)
+# sostituisce il `trigger_prompt` del profilo per questa specifica esecuzione.
+# Mutually exclusive con il `trigger_prompt` inline del profilo:
+#   - se questo è setted: il profilo NON deve avere `trigger_prompt` inline.
+#   - se questo è omesso: il profilo DEVE avere `trigger_prompt` inline.
+# Path safety: il file deve restare DENTRO questa cartella `lavori/<X>/` (no ../).
+trigger_prompt_file = "Prompt_INPUT_Rev.00.rtf"
+
+# --- Nome leggibile opzionale ---
+
+# Se omesso, `labnexus jobs` usa il nome della cartella (es. "CAPABILITY A — Profilo revisione").
+# Override se vuoi un nome più conciso o più descrittivo.
+# display_name = "Revisione documenti SGQ — gennaio 2026"

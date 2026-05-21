@@ -1,0 +1,58 @@
+# SAMPLE-revisione.toml
+# Esempio DRAFT del profilo "revisione" Sprint 1.5.B (FR-12, FR-13, FR-16).
+# Mostra il pattern post-config-master:
+#   - campi opzionali (provider, modello, temperature, ecc.) omessi → ereditati da labnexus.config.toml
+#   - trigger_prompt_file dichiarato → indirezione: il vero trigger sta in lavori/<X>/Prompt_INPUT_Rev.00.rtf
+#
+# Confronta con profili/revisione.yml Sprint 1 (YAML, tutti i campi inline).
+# Diff: ~50% in meno di righe, niente duplicazione di provider/modello/parametri tra i 7 profili.
+
+profilo = "revisione"
+descrizione = "Revisione documentale in seguito a cambio di norma di riferimento"
+
+# kb_files OBBLIGATORI nel profilo (no merge da master — sono capability-specific).
+# Path relativi a ./KB-ispettore/.
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md",
+  "sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md",
+  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
+  "NC-patterns/errori-fatali-da-evitare.md",
+]
+
+# Indirezione: il vero trigger vive in lavori/<X>/Prompt_INPUT_Rev.00.rtf
+# Denis lo edita liberamente in TextEdit. labnexus lo parsa al run e lo usa come
+# trigger_prompt per quella specifica esecuzione.
+# Mutually exclusive con trigger_prompt = "..." inline (XOR validation).
+trigger_prompt_file = "Prompt_INPUT_Rev.00.rtf"
+
+# --- Output frontmatter defaults (Fetta 2 review fix #006 invariato) ---
+
+[output.frontmatter_default]
+tipo = "bozza_revisione"
+stato_qm = "bozza_da_validare_qm"
+profilo_labnexus = "revisione"
+locale = false   # post-pivot-3: data passa per eurouter (NFR-1 amendment)
+
+# --- Campi OPZIONALI (ereditati da labnexus.config.toml master se non setted) ---
+
+# Decommenta per override locale solo se serve.
+# provider = "ollama"
+# modello = "qwen3.6-altro-tag"
+# temperature = 0.7
+# max_tokens = 16384
+# context_window = 128000
+
+# --- Input pattern (Sprint 1 invariato, informativo per Denis e per `labnexus describe`) ---
+
+[input]
+pattern_attesi = [
+  "documento da revisionare (.docx, .doc, .md)",
+  "versione precedente della norma di riferimento (.pdf)",
+  "versione vigente della norma di riferimento (.pdf)",
+]
+istruzioni_se_mancante = """
+Per la revisione servono 3 file: il documento da revisionare, la versione vecchia della norma,
+la versione vigente della norma.
+"""

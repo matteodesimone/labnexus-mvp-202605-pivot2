@@ -1,11 +1,20 @@
 ---
 severity: critical
-status: fixed
+status: intentional_deviation_post_pivot_3
 created: 2026-05-19
 fixed_at: 2026-05-20
+deviation_at: 2026-05-21
 source: review esterna (codex + mistral, CONFIRMED multi-reviewer)
 fix: provider.Select ritorna ErrEurouterGateMissing se LABNEXUS_ALLOW_CLOUD_PROVIDER non è impostato. Senza gate, eurouter è rifiutato indipendentemente da flag/env/profilo. BDD helpers settano il gate per default (ambiente test controllato). Gate test in internal/provider/select_test.go.
-test: internal/provider/select_test.go::TestSelect_EurouterRejectedWithoutApprovalGate (+3 varianti: ViaEnv, ViaProfile, AcceptedWithGate)
+deviation_rationale: |
+  Sprint 1.5 pivot-3 ha invertito la decisione strategica: il deliverable per Denis ora gira
+  con provider eurouter di default perché Denis non ha hardware Ollama. Cliente (Stefano Fiorina)
+  formalmente informato e d'accordo (vedi state.json sprint1.5 approval). Il gate
+  `LABNEXUS_ALLOW_CLOUD_PROVIDER` è stato RIMOSSO dal codice in Sub-fetta 1.5.A perché
+  il suo scopo era proteggere dati SGQ contro esfiltrazione cloud — ora l'esfiltrazione
+  è la NORMA approvata. La decisione cloud/local passa esclusivamente a configurazione
+  utente (labnexus.config.toml master in 1.5.B).
+deviation_test_removed: internal/provider/select_test.go::TestSelect_EurouterRejectedWithoutApprovalGate (+3 varianti) — RIMOSSI in Sub-fetta 1.5.A (decommissione del gate)
 ---
 
 # Bug: provider EUrouter selezionabile senza gate di approvazione → rischio esfiltrazione dati SGQ

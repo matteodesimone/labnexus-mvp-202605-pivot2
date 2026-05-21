@@ -7,7 +7,7 @@
 profilo: pt-analysis
 descrizione: PT Investigation Pack — analisi risultati PT con z-score, classificazione rischio per metodo, trend storico, azioni immediate per casi fuori soglia
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -49,4 +49,3 @@ output:
     tipo: pt_investigation_pack
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: pt-analysis
-    locale: true

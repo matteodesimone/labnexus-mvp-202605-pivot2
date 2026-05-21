@@ -4,25 +4,32 @@ Per Denis (QM) e per chi userà l'eseguibile dopo Sprint 1.
 
 ## Cosa fa LabNexus
 
-Esegue **una capability ispettiva alla volta** del modello AICertus. La capability viene scelta tramite un **profilo YAML** (`revisione`, `rilievi`, ecc.). Il modello AI gira **in locale** sul Mac, su Qwen 3 (Ollama). Nessun dato esce dalla macchina.
+Esegue **una capability ispettiva alla volta** del modello AICertus. La capability viene scelta tramite un **profilo YAML** (`revisione`, `rilievi`, ecc.). Il modello AI è **Qwen 3** via **EUrouter** (gateway cloud EU-GDPR su `api.eurouter.ai`) per default — Sprint 1.5 post-pivot-3. I dati di input transitano a EUrouter; il cliente (Stefano Fiorina) ha formalmente approvato questo flusso. DPA contrattuale è gestito lato cliente.
+
+**Opzione locale** (per chi dispone di hardware adeguato, es. workstation con GPU ≥ 24 GB VRAM): si può forzare il provider Ollama locale con `--provider ollama` (CLI) o `LABNEXUS_PROVIDER=ollama` (env). In quel caso il dato resta sulla macchina, ma è responsabilità dell'utente verificare che `ollama serve` sia attivo e il modello `qwen3.6` installato.
 
 ## Prima volta su un Mac nuovo
 
-L'app non è firmata con certificato Apple Developer (lo sarà in Sprint 2). Alla prima apertura:
+Sprint 1.5 (post-pivot-3): nessun bundle `.app`. Il deliverable è un binary `labnexus` standalone + un piccolo launcher `labnexus.command` per il doppio click dal Finder.
 
-1. Apri il Finder, naviga a dove hai estratto `labnexus.app`
-2. **Control-clic** sull'icona di `labnexus.app`
-3. Scegli "Apri" dal menu
-4. macOS chiede conferma — clicca "Apri" di nuovo
-5. **Operazione una tantum**: i successivi lanci sono normali
+Setup iniziale:
 
-Inoltre serve **Ollama** in esecuzione (`ollama serve`) con il modello `qwen3.6` installato (`ollama pull qwen3.6` la prima volta).
+1. Estrai lo zip in una cartella di tua scelta.
+2. Apri Terminal nella cartella dello zip (oppure naviga col `cd`).
+3. (Solo se hai scompattato lo zip via Finder) Rimuovi il quarantine flag di macOS:
+   ```bash
+   xattr -d com.apple.quarantine labnexus labnexus.command
+   ```
+   In alternativa: control-clic sull'icona di `labnexus` (e `labnexus.command`) nel Finder → "Apri" → conferma. Operazione una tantum.
+4. **Sprint 1.5.B** (in arrivo): edita `labnexus.config.toml` per inserire la tua `eurouter_api_key`. **Sprint 1.5.A** (corrente): l'API key resta come env var temporanea (`export EUROUTER_API_KEY=...`) finché 1.5.B non introduce il config master.
 
-## Tre modi di lanciarlo
+Nessuna installazione di Ollama richiesta (post-pivot-3: il default è eurouter cloud EU-GDPR).
 
-### 1. Doppio click (più semplice)
+## Due modi di lanciarlo
 
-Doppio click su `labnexus.app`: si apre Terminal con una TUI sequenziale. La TUI ti chiede in ordine:
+### 1. Doppio click su `labnexus.command` (più semplice)
+
+Doppio click su `labnexus.command` dal Finder: si apre Terminal con una TUI sequenziale. La TUI ti chiede in ordine:
 
 1. **Quale capability** vuoi eseguire? (lista a scorrimento con descrizione)
 2. **Cartella di input**: dove sono i file da processare?
@@ -30,17 +37,19 @@ Doppio click su `labnexus.app`: si apre Terminal con una TUI sequenziale. La TUI
 
 Quando l'esecuzione termina, il file `.md` risultante è nella cartella di output.
 
-### 2. Drag & drop di una cartella
-
-Trascina una cartella sull'icona di `labnexus.app`: la TUI parte già con quella cartella come input. Ti chiede solo la capability e la cartella di output.
-
-### 3. Riga di comando (per scripting)
+### 2. Riga di comando (per scripting o utenti CLI)
 
 ```
-labnexus run --profile revisione --input /path/Test1 --output /path/Out
+./labnexus run --profile revisione --input /path/Test1 --output /path/Out
 ```
 
-> **Nota tecnica**: il "comando" `labnexus` nel PATH dovrebbe essere il **binario reale**, NON il wrapper del bundle `.app`. Se hai installato solo `labnexus.app`, usa il binario interno: `./labnexus.app/Contents/MacOS/labnexus-bin`. Lanciare il wrapper (`labnexus` dentro `.app/Contents/MacOS/`) da terminale è valido ma aprirà una **seconda** finestra Terminal — è il comportamento corretto per il doppio click dal Finder, scomodo se sei già in una shell.
+Oppure invoca la TUI con un input pre-selezionato:
+
+```
+./labnexus /Users/denis/Test1
+```
+
+Il path posizionale viene preso come input; la TUI chiede solo capability + output.
 
 Comandi accessori:
 - `labnexus list` — elenca i profili installati con descrizione
@@ -67,7 +76,7 @@ In Sprint 1 sono validate sull'hardware locale. **Nuove capability** puoi aggiun
 Dopo che hai scelto capability, input e output, sul terminale appaiono linee di log come:
 
 ```
-[10:32:14] chiamata provider ollama ...
+[10:32:14] chiamata provider eurouter (https://api.eurouter.ai/v1/chat/completions) ...
 [10:32:14] attendo risposta dal modello (warmup può richiedere minuti su modelli grandi)...
 [10:32:24] ...ancora in attesa del primo token (10s elapsed)
 [10:32:34] ...ancora in attesa del primo token (20s elapsed)
@@ -77,7 +86,7 @@ Dopo che hai scelto capability, input e output, sul terminale appaiono linee di 
 [10:38:47] output: /Users/denis/Out/2026-05-19_103214_revisione_Test1.md
 ```
 
-Le righe `...ancora in attesa` significano che Ollama sta caricando il modello in RAM (warmup): è normale, soprattutto la prima volta dopo l'avvio o se il modello è grande (qwen3.6 36B = 23 GB). Una volta arrivato il primo token, la riga `> X token` si aggiorna in-place ogni mezzo secondo mostrando token cumulati, tempo trascorso e velocità (tok/s).
+Le righe `...ancora in attesa` significano che il modello deve essere allocato lato server (cold start su EUrouter, o warmup di RAM se hai forzato Ollama locale). È normale soprattutto la prima richiesta dopo qualche minuto di inattività, o su modelli grandi (qwen3.6 36B = 23 GB). Una volta arrivato il primo token, la riga `> X token` si aggiorna in-place ogni mezzo secondo mostrando token cumulati, tempo trascorso e velocità (tok/s).
 
 Se non vedi nessun aggiornamento per più di 2-3 minuti dopo il primo token, c'è davvero un problema (vedi sezione "Quando qualcosa va storto").
 

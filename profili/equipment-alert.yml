@@ -3,7 +3,7 @@
 profilo: equipment-alert
 descrizione: Equipment Alert per apparecchiatura fuori-stato — 5 sezioni del template con ragionamento causale stato → impatto sui metodi di prova associati
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -39,4 +39,3 @@ output:
     tipo: equipment_alert
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: equipment-alert
-    locale: true

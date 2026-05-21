@@ -2,8 +2,9 @@
 slug: frontmatter-key-ownership-table
 created: 2026-05-21
 source: compound learning Fetta 2 (semantic collision `stato`)
-status: ready-to-spec
+status: in-progress (spec started 2026-05-21, see .pipeline/spec.md)
 priority: P3
+pulled_into_spec: 2026-05-21 — assorbita in Sprint 1.5.B (config master TOML + profile-override). La tabella key-ownership diventerà esplicita nello schema TOML.
 ---
 
 # Idea — Tabella ownership chiavi frontmatter (engine vs profile default)

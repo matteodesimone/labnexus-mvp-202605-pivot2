@@ -1,6 +1,6 @@
 # LabNexus
 
-Eseguibile macOS / Linux nativo (Go) che esegue **una capability ispettiva alla volta** del modello AICertus, chiamando un LLM locale (Qwen 3 via Ollama) o, come canale di sviluppo, EUrouter.
+Eseguibile macOS / Linux nativo (Go) che esegue **una capability ispettiva alla volta** del modello AICertus. **Sprint 1.5 (default deliverable)**: chiama Qwen 3 via EUrouter (cloud EU-GDPR, gateway `api.eurouter.ai`). **Opzionale**: Qwen 3 locale via Ollama per chi dispone di hardware adeguato (override via flag `--provider ollama` o env `LABNEXUS_PROVIDER=ollama`).
 
 Sprint 1 (in corso): motore + 7 profili + prompt meta per generare nuovi profili in autonomia. Vedi `.pipeline/spec.md` e `.pipeline/plan.md`.
 
@@ -13,7 +13,7 @@ Tutto via `make` (lancia `make` senza argomenti per la lista completa dei target
 ```
 make build        # binario per la macchina corrente → bin/labnexus
 make build-linux  # cross-compile Linux/amd64 → dist/labnexus-linux-amd64
-make build-mac    # cross-compile macOS arm64 → labnexus.app
+make build-mac    # cross-compile macOS arm64 → bin/labnexus-darwin-arm64
 make ship         # pacchetto completo di consegna (clean + test + zip)
                   # → dist/labnexus-sprint1-darwin-arm64.zip
 make smoke        # smoke test del binario su Test 1 reale (dry-run, no LLM)
@@ -46,22 +46,35 @@ labnexus run --profile revisione --provider eurouter --input ./test1 --output ./
 Modalità interattiva (TUI cross-platform):
 ```
 labnexus                              # apre selettore: profilo → input → output
-labnexus /Users/denis/Test1           # input pre-selezionato (drag&drop su .app)
+labnexus /Users/denis/Test1           # input pre-selezionato (path posizionale CLI)
 ```
+
+Su macOS, doppio click su `labnexus.command` (launcher 2 righe accanto al binary) apre Terminal e lancia la TUI.
 
 ### Procedura macOS Gatekeeper (prima esecuzione)
 
-Il binario non è firmato con certificato Apple Developer (vedi OOS-5 in `spec.md`). Alla prima apertura:
-1. Control-clic sull'icona di `labnexus.app` nel Finder
+Il binario non è firmato con certificato Apple Developer (vedi OOS-5 in `spec.md`).
+Sprint 1.5.A: niente bundle `.app`; il binary è standalone. Il workflow Gatekeeper post-pivot-3 è:
+
+**Workaround consigliato (Terminal)**:
+```bash
+xattr -d com.apple.quarantine labnexus labnexus.command
+```
+Rimuove il quarantine flag aggiunto da macOS quando il file è stato scaricato/scompattato via Finder. Operazione una tantum.
+
+**In alternativa (Finder)**:
+1. Control-clic sull'icona di `labnexus` (o `labnexus.command`) nel Finder
 2. "Apri" → conferma
-3. Operazione una tantum
+3. Operazione una tantum per ciascuno dei 2 file
 
 ## Provider LLM
 
+Sprint 1.5.A (post-pivot-3): **eurouter è il provider di default** del deliverable. Cliente (Stefano Fiorina + Denis) formalmente d'accordo: i dati reali transitano a `api.eurouter.ai` (gateway cloud EU-GDPR). DPA contrattuale lato cliente.
+
 | Provider | Quando | Come |
 |---|---|---|
-| `ollama` | Default Sprint 1, **deliverable Denis (locale mandatory)** | Richiede `ollama serve` in ascolto su `localhost:11434` e il modello `qwen3.6` installato |
-| `eurouter` | **Solo sviluppo CTO** (su macOS dove Ollama non gira); facility di debug | Richiede env var `EUROUTER_API_KEY`; **non operativo sui dati reali del SGQ di Denis senza approvazione esplicita** |
+| `eurouter` | **Default deliverable Sprint 1.5** | Richiede chiave `EUROUTER_API_KEY` (Sprint 1.5.A: env var; Sprint 1.5.B: configurabile in `labnexus.config.toml`). Modello: `qwen3.6` su eurouter EU-GDPR gateway |
+| `ollama` | Opzionale via flag/env/profile, scenari sviluppo CTO o utenti con hardware locale sufficiente | Richiede `ollama serve` in ascolto su `localhost:11434` e il modello `qwen3.6` installato |
 
 ## Layout
 

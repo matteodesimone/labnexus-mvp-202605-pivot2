@@ -3,7 +3,7 @@
 profilo: rilievi
 descrizione: Gestione rilievi Accredia (NC, Osservazioni, Commenti) — produce un CAPA Pack per ogni rilievo
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -45,4 +45,3 @@ output:
     tipo: capa_pack
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: rilievi
-    locale: true

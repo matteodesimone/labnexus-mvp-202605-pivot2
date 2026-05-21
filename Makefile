@@ -11,8 +11,8 @@ SHELL       := /usr/bin/env bash
 BINARY      := labnexus
 MAIN_PKG    := ./cmd/labnexus
 DIST_DIR    := dist
-APP_BUNDLE  := labnexus.app
 ZIP_NAME    := labnexus-sprint1-darwin-arm64.zip
+# Sprint 1.5.A (post-pivot-3): rimosso APP_BUNDLE (no più .app bundle).
 
 # Versione: usa `git describe` se disponibile, altrimenti "dev"
 VERSION     := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -50,7 +50,7 @@ build: ## Build per la macchina corrente (in ./bin/labnexus)
 	@echo "✓ bin/$(BINARY) ($$(file bin/$(BINARY) | cut -d: -f2 | xargs))"
 
 .PHONY: build-mac
-build-mac: ## Cross-compile macOS Apple Silicon → labnexus.app
+build-mac: ## Cross-compile macOS Apple Silicon → bin/labnexus-darwin-arm64 (binary standalone, no bundle Sprint 1.5.A)
 	bash scripts/build-mac.sh
 
 .PHONY: build-linux
@@ -119,7 +119,7 @@ smoke: build ## Smoke test del binario: list + describe + check su Test 1 reale 
 # ─── Packaging / Ship ────────────────────────────────────────────────────────
 
 .PHONY: package
-package: build-mac ## Costruisce labnexus.app + zip di consegna (dist/labnexus-sprint1-darwin-arm64.zip)
+package: build-mac ## Costruisce binary darwin/arm64 + zip di consegna (dist/labnexus-sprint1-darwin-arm64.zip)
 	bash scripts/build-zip.sh
 
 .PHONY: ship
@@ -134,10 +134,10 @@ ship: clean test vet package ## Pipeline completa di consegna: clean → test �
 # ─── Cleanup ─────────────────────────────────────────────────────────────────
 
 .PHONY: clean
-clean: ## Rimuove artefatti di build (bin/, dist/, labnexus.app/)
+clean: ## Rimuove artefatti di build (bin/, dist/)
 	rm -rf bin/
 	rm -rf $(DIST_DIR)/
-	rm -rf $(APP_BUNDLE)/
+	rm -rf labnexus.app/   # cleanup legacy bundle se presente da pre-Sprint-1.5.A
 	rm -f labnexus-smoke labnexus-final
 	@echo "✓ artefatti rimossi"
 

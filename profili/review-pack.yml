@@ -3,7 +3,7 @@
 profilo: review-pack
 descrizione: Riesame annuale della Direzione — Management Review Pack a 13 sezioni con sintesi iniziale coerente con le decisioni finali
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -46,4 +46,3 @@ output:
     tipo: management_review_pack
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: review-pack
-    locale: true

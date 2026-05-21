@@ -3,7 +3,7 @@
 profilo: revisione
 descrizione: Revisione documentale in seguito a cambio di norma di riferimento
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -47,4 +47,3 @@ output:
     tipo: bozza_revisione
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: revisione
-    locale: true

@@ -1,9 +1,13 @@
 # language: it
 
-Funzionalità: Motore LabNexus — modalità interattiva TUI cross-platform e bundle .app
-  In quanto Denis (macOS) che lavora dal Finder, e in quanto CTO (Linux/WSL2 o macOS) che lancia da terminale,
-  voglio una modalità interattiva sequenziale che giri uguale ovunque,
-  e su macOS un bundle .app che apra Terminal con la TUI in modo trasparente.
+Funzionalità: Motore LabNexus — modalità interattiva TUI cross-platform
+  In quanto Denis (macOS) che lavora da Terminal con doppio click su labnexus.command,
+  e in quanto CTO (Linux/WSL2 o macOS) che lancia da terminale,
+  voglio una modalità interattiva sequenziale che giri uguale ovunque.
+
+  Nota Sprint 1.5.A (post-pivot-3): il bundle .app è stato eliminato a favore di un
+  binary CLI puro multipiattaforma + un piccolo launcher labnexus.command per macOS.
+  Vedi features/sprint1.5-A-pivot3-cli-puro.feature per le verifiche del refactor.
 
   # --- FR-10: TUI cross-platform sequenziale ---
 
@@ -47,47 +51,14 @@ Funzionalità: Motore LabNexus — modalità interattiva TUI cross-platform e bu
     Allora il flusso TUI (selezione profilo → input → output) è identico
     E nessuna funzionalità della TUI dipende da chiamate osascript o API macOS
 
-  # --- FR-11: bundle .app macOS + binario Linux ---
-
-  @manual
-  Scenario: bundle .app contiene wrapper bash + binario reale e Info.plist valido
-    Quando ispeziono "labnexus.app"
-    Allora esiste "labnexus.app/Contents/MacOS/labnexus" come wrapper bash (testo, shebang #!)
-    E esiste "labnexus.app/Contents/MacOS/labnexus-bin" come binario Mach-O arm64
-    E il wrapper invoca "osascript" per aprire Terminal e lanciare labnexus-bin
-    E "labnexus.app/Contents/Info.plist" dichiara CFBundleExecutable = "labnexus"
-    E "Info.plist" dichiara LSHandlerRank e supporto a "Folder" (per drag&drop)
-    # Nota: la verifica automatizzata di questo layout è in internal/bundle/bundle_test.go
-    # (5 test, build tag darwin). Questo scenario @manual resta per documentazione end-to-end
-    # (validazione Finder + Terminal reali — non automatizzabile in CI).
-
-  @manual
-  Scenario: doppio click sul .app apre Terminal e avvia la TUI
-    Dato che faccio doppio click su "labnexus.app" dal Finder
-    Allora si apre una finestra Terminal
-    E nella finestra parte la TUI sequenziale di FR-10
-    E la finestra resta aperta a fine esecuzione per permettere di leggere log/output
-
-  @manual
-  Scenario: drag&drop di una cartella sull'icona .app pre-seleziona l'input
-    Quando trascino la cartella "/Users/denis/Test1" sull'icona "labnexus.app"
-    Allora si apre Terminal con la TUI
-    E la TUI parte dalla selezione del profilo (non chiede l'input)
-    E "/Users/denis/Test1" è l'input usato
-
-  @manual
-  Scenario: bundle non firmato → procedura Gatekeeper documentata
-    Dato che "labnexus.app" non è firmato con certificato Apple Developer
-    Quando un utente lancia per la prima volta
-    Allora macOS blocca con il messaggio Gatekeeper standard
-    E il README documenta la procedura "control-clic → Apri" come passo una tantum
+  # --- FR-11 amendment Sprint 1.5.A: binari standalone su entrambi i target ---
 
   @manual
   Scenario: binario Linux standalone
-    Dato che il deliverable per linux/amd64 è il binario "labnexus" (no .app)
+    Dato che il deliverable per linux/amd64 è il binario "labnexus" (senza bundle)
     Quando un utente Linux scarica e fa "chmod +x labnexus && ./labnexus"
     Allora la TUI parte uguale a macOS
-    E non sono necessari .app bundle né operazioni Gatekeeper-equivalenti
+    E non sono necessarie operazioni Gatekeeper-equivalenti
 
   @manual
   Scenario: lancio CLI puro funziona identicamente su entrambi i target

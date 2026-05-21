@@ -22,7 +22,7 @@ Funzionalità: Motore LabNexus — provider Ollama e EUrouter, streaming, progre
     Quando lancio "labnexus run --profile revisione --input /tmp/in --output /tmp/out"
     Allora exit code è 1
     E stderr contiene "Ollama"
-    E stderr suggerisce di "verifica che ollama serve sia attivo"
+    E stderr suggerisce di "verifica che 'ollama serve' sia attivo"
 
   # --- FR-7: provider EUrouter (SSE) ---
 

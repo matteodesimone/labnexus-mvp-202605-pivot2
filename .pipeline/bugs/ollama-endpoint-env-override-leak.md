@@ -1,11 +1,19 @@
 ---
 severity: high
-status: fixed
+status: intentional_deviation_post_pivot_3
 created: 2026-05-19
 fixed_at: 2026-05-20
+deviation_at: 2026-05-21
 source: review esterna (codex-security)
 fix: provider.Select valida l'endpoint Ollama tramite requireLoopbackOrCloudGate. Solo host loopback (127.0.0.0/8, ::1, "localhost") sono ammessi di default. Host remoti richiedono LABNEXUS_ALLOW_CLOUD_PROVIDER esplicito (stesso gate di #001 eurouter). Default "http://localhost:11434" preservato.
-test: internal/provider/select_test.go::TestSelect_OllamaRejectsRemoteEndpoint (+5 varianti: AcceptsLoopback, AcceptsLocalhost, AcceptsIPv6Loopback, RemoteAcceptedWithCloudGate, DefaultEndpointStillLocalhost)
+deviation_rationale: |
+  Sprint 1.5 pivot-3 ha rimosso il gate cloud (vedi privacy-eurouter-gate-mancante.md
+  intentional_deviation). La protezione `requireLoopbackOrCloudGate` per LABNEXUS_OLLAMA_ENDPOINT
+  era coerente con il gate eurouter: stessa filosofia "decisione cloud/local via env var
+  esplicita". Ora la decisione passa esclusivamente a configurazione utente
+  (labnexus.config.toml master in 1.5.B). Eurouter è già il default; un Ollama endpoint
+  remoto è uso esperto (CTO + futuro server backend Sprint 2), non ostile.
+test: internal/provider/select_test.go::TestSelect_OllamaRejectsRemoteEndpoint (+5 varianti) — RIMOSSI in Sub-fetta 1.5.A (decommissione del gate)
 ---
 
 # Bug: `LABNEXUS_OLLAMA_ENDPOINT` può deviare il "provider locale" a un host remoto silenziosamente

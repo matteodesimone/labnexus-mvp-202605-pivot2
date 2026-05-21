@@ -247,6 +247,15 @@ func registerSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^il body cita SOLO codici PT presenti nei risultati di input$`, bodyCitaSoloCodiciPTDaInput)
 	ctx.Step(`^il body cita SOLO codici metodo presenti nell'elenco metodi$`, bodyCitaSoloCodiciMetodoDaInput)
 	ctx.Step(`^il body include azioni immediate per i casi con z-score fuori soglia$`, bodyIncludeAzioniImmediateZScore)
+
+	// --- Sprint 1.5.A: static-analysis del codebase per refactor pivot-3 + CLI puro ---
+	ctx.Step(`^(?:che )?il file di sorgente "([^"]+)" esiste$`, sprint15aFileSorgenteEsiste)
+	ctx.Step(`^il file di sorgente "([^"]+)" non esiste$`, sprint15aFileSorgenteNonEsiste)
+	ctx.Step(`^il file di sorgente "([^"]+)" contiene la stringa "([^"]+)"$`, sprint15aFileSorgenteContiene)
+	ctx.Step(`^il file di sorgente "([^"]+)" non contiene la stringa "([^"]+)"$`, sprint15aFileSorgenteNonContiene)
+	ctx.Step(`^il file di sorgente "([^"]+)" ha il bit eseguibile attivo$`, sprint15aFileSorgenteEseguibile)
+	ctx.Step(`^tutti i profili shippati dichiarano la riga "([^"]+)"$`, sprint15aTuttiProfiliDichiaranoRiga)
+	ctx.Step(`^nessun profilo shippato dichiara la riga "([^"]+)"$`, sprint15aNessunProfiloDichiaraRiga)
 }
 
 // ============================================================
@@ -2493,4 +2502,121 @@ Altri metodi: stabilità conforme.
 - **PT-2025-04 (PCM-09 Cd, z=-2.4 questionabile)**: verifica intermedia ICP-MS-C entro 15 giorni. Test su materiale di riferimento certificato. Se non conforme: re-taratura completa.
 - **PCM-12 IPA sedimento**: pianificare 2-3 partecipazioni PT in 2026 per consolidare baseline (servono almeno 5 punti storici per trend statisticamente significativo).
 - **Sorveglianza generale**: KPI conforme PT al 95% disatteso (83%). Riportato in riesame direzione Q1-2026.`
+}
+
+// ============================================================
+// Sprint 1.5.A — static-analysis del codebase per refactor pivot-3 + CLI puro
+// Pattern: BDD = filesystem-read + grep static. Niente subprocess pesanti.
+// Path sono relativi a repoRoot (variabile package-level da main_test.go).
+// ============================================================
+
+// sprint15aShippedProfiles è la lista canonica dei 7 profili shippati Sprint 1.
+// Usata da step "tutti/nessun profilo shippato dichiara ...". Hardcoded perché
+// "shipped profile" è una decisione di scope Sprint 1, non un valore runtime.
+var sprint15aShippedProfiles = []string{
+	"revisione",
+	"rilievi",
+	"review-pack",
+	"audit-checklist",
+	"equipment-alert",
+	"competence-gap",
+	"pt-analysis",
+}
+
+// sprint15aReadFile carica il file relativo a repoRoot, con errore parlante.
+func sprint15aReadFile(path string) (string, error) {
+	full := filepath.Join(repoRoot, path)
+	b, err := os.ReadFile(full)
+	if err != nil {
+		return "", fmt.Errorf("file sorgente %q non leggibile: %w", path, err)
+	}
+	return string(b), nil
+}
+
+func sprint15aFileSorgenteEsiste(c context.Context, path string) (context.Context, error) {
+	full := filepath.Join(repoRoot, path)
+	fi, err := os.Stat(full)
+	if err != nil {
+		return c, fmt.Errorf("file sorgente %q non esiste: %v", path, err)
+	}
+	if fi.IsDir() {
+		return c, fmt.Errorf("path %q esiste ma è una directory, atteso file regolare", path)
+	}
+	return c, nil
+}
+
+func sprint15aFileSorgenteNonEsiste(c context.Context, path string) (context.Context, error) {
+	full := filepath.Join(repoRoot, path)
+	if _, err := os.Stat(full); err == nil {
+		return c, fmt.Errorf("file sorgente %q esiste, atteso non esistente (rimosso/rinominato dal refactor)", path)
+	}
+	return c, nil
+}
+
+func sprint15aFileSorgenteContiene(c context.Context, path, needle string) (context.Context, error) {
+	content, err := sprint15aReadFile(path)
+	if err != nil {
+		return c, err
+	}
+	if !strings.Contains(content, needle) {
+		return c, fmt.Errorf("file %q non contiene la stringa %q (attesa presenza per il refactor)", path, needle)
+	}
+	return c, nil
+}
+
+func sprint15aFileSorgenteNonContiene(c context.Context, path, needle string) (context.Context, error) {
+	content, err := sprint15aReadFile(path)
+	if err != nil {
+		return c, err
+	}
+	if strings.Contains(content, needle) {
+		return c, fmt.Errorf("file %q contiene la stringa %q (attesa rimozione dal refactor pivot-3)", path, needle)
+	}
+	return c, nil
+}
+
+func sprint15aFileSorgenteEseguibile(c context.Context, path string) (context.Context, error) {
+	full := filepath.Join(repoRoot, path)
+	fi, err := os.Stat(full)
+	if err != nil {
+		return c, fmt.Errorf("file sorgente %q non esiste: %v", path, err)
+	}
+	// User-exec bit (0o100). Sufficiente per macOS doppio click su .command.
+	if fi.Mode().Perm()&0o100 == 0 {
+		return c, fmt.Errorf("file %q non ha il bit user-exec (mode=%o), atteso almeno 0o755 per launcher .command", path, fi.Mode().Perm())
+	}
+	return c, nil
+}
+
+// sprint15aTuttiProfiliDichiaranoRiga: verifica che TUTTI i 7 profili shippati
+// contengano la riga `riga` (stringa esatta da cercare in `profili/<name>.yml`).
+func sprint15aTuttiProfiliDichiaranoRiga(c context.Context, riga string) (context.Context, error) {
+	for _, profilo := range sprint15aShippedProfiles {
+		path := filepath.Join("profili", profilo+".yml")
+		content, err := sprint15aReadFile(path)
+		if err != nil {
+			return c, err
+		}
+		if !strings.Contains(content, riga) {
+			return c, fmt.Errorf("profilo shippato %q non contiene la riga %q (atteso post-refactor pivot-3)", profilo, riga)
+		}
+	}
+	return c, nil
+}
+
+// sprint15aNessunProfiloDichiaraRiga: verifica che NESSUNO dei 7 profili
+// shippati contenga la riga `riga`. Usato per validare l'assenza di
+// dichiarazioni obsolete (es. `provider: ollama` post-pivot-3).
+func sprint15aNessunProfiloDichiaraRiga(c context.Context, riga string) (context.Context, error) {
+	for _, profilo := range sprint15aShippedProfiles {
+		path := filepath.Join("profili", profilo+".yml")
+		content, err := sprint15aReadFile(path)
+		if err != nil {
+			return c, err
+		}
+		if strings.Contains(content, riga) {
+			return c, fmt.Errorf("profilo shippato %q contiene la riga %q (atteso rimosso post-refactor pivot-3)", profilo, riga)
+		}
+	}
+	return c, nil
 }

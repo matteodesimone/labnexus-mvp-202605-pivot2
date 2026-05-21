@@ -1,0 +1,49 @@
+# SAMPLE-labnexus-config.toml
+# Esempio DRAFT del config master di Sprint 1.5.B (FR-11).
+# Denis edita questo file dopo aver estratto lo zip, inserisce la sua eurouter_api_key,
+# eventualmente cambia provider/modello/parametri per usi avanzati.
+#
+# Le chiavi qui dichiarate sono i DEFAULTS globali ereditati da tutti i profili in profili/*.toml.
+# Un profilo può sovrascrivere QUALSIASI di queste chiavi a livello locale (precedenza profilo > master).
+
+# --- Provider LLM e modello di default ---
+
+# Provider effettivo per tutti i profili (a meno che il profilo non override).
+# Valori ammessi: "eurouter" (cloud EU-GDPR) | "ollama" (locale)
+# Default Sprint 1.5: "eurouter" (Denis non ha hardware Ollama).
+provider = "eurouter"
+
+# Modello LLM target. Su eurouter è disponibile qwen3.6 (verificato CTO).
+# Per altri modelli vedi catalogo eurouter (es. "mistralai/mistral-large").
+modello = "qwen3.6"
+
+# --- Parametri di generazione (Sprint 1 defaults invariati) ---
+
+temperature = 0.9
+max_tokens = 8192
+context_window = 128000
+
+# --- Credenziali ---
+
+# IMPORTANTE: inserisci qui la tua chiave API eurouter PRIMA di lanciare il binary.
+# Ottieni la chiave da Stefano Fiorina (Sprint 1.5 pivot 3: cliente paga API).
+# La chiave NON viene committata nel repo Git né viene loggata.
+eurouter_api_key = ""
+
+# --- Endpoint provider (override opzionali) ---
+
+# Default eurouter endpoint (OpenAI-compatible, EU-GDPR gateway).
+eurouter_endpoint = "https://api.eurouter.ai/v1/chat/completions"
+
+# Default ollama endpoint (se in qualche profilo dichiari provider = "ollama").
+# Pattern: loopback only ("http://localhost:11434" o "http://127.0.0.1:11434").
+# Endpoint remoti non sono più bloccati (gate rimosso post-pivot-3) ma sono
+# uso "esperto" — assicurati di sapere cosa stai facendo.
+ollama_endpoint = "http://localhost:11434"
+
+# --- HTTP timeout (Sprint 1.5 invariato da Fetta 1 stabilization) ---
+
+# Timeout TTFB (time-to-first-byte) per chiamate HTTP al provider, in secondi.
+# Default 1800 (30 min) copre modelli reasoning grandi su Ollama.
+# Su eurouter cloud raramente serve più di 30s, ma il default conservativo non danneggia.
+http_timeout_seconds = 1800

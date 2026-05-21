@@ -3,7 +3,7 @@
 profilo: audit-checklist
 descrizione: Checklist d'audit interno mirata al risk register — 15-30 domande ispettive raggruppate per area con campioni documentali e livello di rischio
 
-provider: ollama
+provider: eurouter
 modello: qwen3.6
 
 temperature: 0.9
@@ -43,4 +43,3 @@ output:
     tipo: audit_checklist
     stato_qm: bozza_da_validare_qm
     profilo_labnexus: audit-checklist
-    locale: true

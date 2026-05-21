@@ -22,7 +22,7 @@ Per il CTO + futuro contributor. Build, test, layout, gotchas.
 | Iterazione locale | `make build && make smoke` | Compila + smoke test (list/describe/validate/check su Test 1 reale, no LLM) |
 | Debug test rotti | `make test-verbose` | Output `-v` per individuare lo scenario fallito |
 | Consegna Denis | `make ship` | ⭐ One-shot: `clean + test + vet + build-mac + zip` → `dist/labnexus-sprint1-darwin-arm64.zip` |
-| Pulizia | `make clean` | Rimuove `bin/`, `dist/`, `labnexus.app/`, `labnexus-smoke`, `labnexus-final` |
+| Pulizia | `make clean` | Rimuove `bin/`, `dist/`, `labnexus-smoke`, `labnexus-final` |
 
 ### Lista completa dei target
 
@@ -31,7 +31,7 @@ make                Help colorato (default)
 
 Build:
   build             Binario per la macchina corrente → bin/labnexus
-  build-mac         Cross-compile darwin/arm64 → labnexus.app
+  build-mac         Cross-compile darwin/arm64 → bin/labnexus-darwin-arm64 (binary standalone, no bundle post-Sprint-1.5.A)
   build-linux       Cross-compile linux/amd64 → dist/labnexus-linux-amd64
   build-all         build-mac + build-linux (entrambi i target Sprint 1)
 
@@ -56,7 +56,7 @@ Packaging:
   ship              clean + test + vet + package (pipeline completa di consegna)
 
 Cleanup:
-  clean             Rimuove bin/, dist/, labnexus.app/, smoke binaries
+  clean             Rimuove bin/, dist/, smoke binaries
   distclean         clean + go clean -testcache
 ```
 

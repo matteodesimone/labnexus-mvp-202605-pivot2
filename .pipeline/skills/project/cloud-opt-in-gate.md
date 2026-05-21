@@ -3,7 +3,12 @@ slug: cloud-opt-in-gate
 created: 2026-05-21
 source_cycle: bugfix pass post-Fetta-2 (#001 + #003)
 applies_to: ogni nuovo provider o endpoint override che possa puntare fuori dalla macchina locale di Denis
+status: decommissioned 2026-05-21 in sub-fetta 1.5.A (pivot 3 ha invertito NFR-1: cloud è default approvato dal cliente, il gate non ha più razionale)
+decommissioned_by: .pipeline/solutions/2026-05-21-sub-fetta-1.5.A-pivot-3-cli-puro.md
+decommissioned_bugs: .pipeline/bugs/privacy-eurouter-gate-mancante.md + ollama-endpoint-env-override-leak.md (status: intentional_deviation_post_pivot_3)
 ---
+
+> **DECOMMISSIONED 2026-05-21**: pattern preservato per tracciabilità storica. NON applicare a nuovo codice in Sprint 1.5+. La decisione cloud/local passa ora esclusivamente per configurazione utente (futuro `labnexus.config.toml` 1.5.B), senza gate runtime di approvazione. Cliente (Stefano Fiorina) ha formalmente approvato il transito dati a EUrouter.
 
 # Cloud opt-in gate via singolo env var
 

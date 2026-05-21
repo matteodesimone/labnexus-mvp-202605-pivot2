@@ -1,5 +1,9 @@
 # Skill — CLI in macOS .app bundle (wrapper bash + osascript)
 
+> **DECOMMISSIONED 2026-05-21** in sub-fetta 1.5.A (Sprint 1.5). Pattern preservato per tracciabilità storica. NON applicare a nuovo codice. Sostituito da `labnexus.command` 2-righe launcher (`cd "$(dirname "$0")" && ./labnexus`) — niente bundle, niente Info.plist, niente osascript. Vedi `.pipeline/solutions/2026-05-21-sub-fetta-1.5.A-pivot-3-cli-puro.md`. Il `.command` è funzionalmente equivalente per il doppio click Finder ma drasticamente più semplice e cross-platform-compatible (Linux/WSL2 non ha bisogno di analoghi: il binary nudo `chmod +x` basta).
+
+---
+
 Pattern per impacchettare un binario CLI dentro un macOS `.app` bundle in modo che il doppio click dal Finder apra Terminal con la CLI in esecuzione. Emerso dal bug `app-bundle-doppio-click-no-output` (Sprint 1 LabNexus, fix 2026-05-19).
 
 ## Quando applicarlo

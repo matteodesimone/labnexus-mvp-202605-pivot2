@@ -137,3 +137,60 @@ func TestParseDir_PDFMagicBytesCheckRejectsNonPDF(t *testing.T) {
 		t.Fatal("expected error for single non-PDF file, got nil")
 	}
 }
+
+// TestParseTriggerPromptFile_HappyPathTxt (fix review 1.5.B mistral MEDIUM):
+// FR-17 happy path con file .txt.
+func TestParseTriggerPromptFile_HappyPathTxt(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "trigger.txt", "Trigger plain text di test")
+	text, err := input.ParseTriggerPromptFile(dir, "trigger.txt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(text, "Trigger plain text di test") {
+		t.Errorf("text estratto inatteso: %q", text)
+	}
+}
+
+// TestParseTriggerPromptFile_PathTraversalRejected (fix review 1.5.B mistral
+// MEDIUM): NFR-6 amendment esteso a trigger_prompt_file. Path con `..`
+// che esce da inputDir deve essere rifiutato (lexical check pre-symlink).
+func TestParseTriggerPromptFile_PathTraversalRejected(t *testing.T) {
+	dir := t.TempDir()
+	// File legittimo dentro inputDir (perché l'errore atteso è path-not-allowed,
+	// non file-not-found).
+	writeFile(t, dir, "ok.txt", "ok")
+	_, err := input.ParseTriggerPromptFile(dir, "../../etc/passwd")
+	if err == nil {
+		t.Fatal("expected error per path traversal, got nil")
+	}
+	if !strings.Contains(err.Error(), "non consentito") {
+		t.Errorf("error dovrebbe menzionare 'non consentito', got: %v", err)
+	}
+}
+
+// TestParseTriggerPromptFile_SymlinkEscapeRejected (fix review 1.5.B mistral
+// MEDIUM): symlink dentro inputDir che punta fuori → EvalSymlinks rileva e
+// rifiuta. Privacy violation prevention.
+func TestParseTriggerPromptFile_SymlinkEscapeRejected(t *testing.T) {
+	dir := t.TempDir()
+	// File sensibile fuori da inputDir.
+	parentDir := filepath.Dir(dir)
+	sensitive := filepath.Join(parentDir, "sensitive-leak.txt")
+	if err := os.WriteFile(sensitive, []byte("data riservata"), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	defer os.Remove(sensitive)
+	// Symlink dentro inputDir che punta al file fuori.
+	linkPath := filepath.Join(dir, "trigger.txt")
+	if err := os.Symlink(sensitive, linkPath); err != nil {
+		t.Skipf("symlink creation not supported on this filesystem: %v", err)
+	}
+	_, err := input.ParseTriggerPromptFile(dir, "trigger.txt")
+	if err == nil {
+		t.Fatal("expected error per symlink escape, got nil (privacy violation)")
+	}
+	if !strings.Contains(err.Error(), "non consentito") && !strings.Contains(err.Error(), "esce") {
+		t.Errorf("error dovrebbe menzionare 'non consentito' o 'esce', got: %v", err)
+	}
+}

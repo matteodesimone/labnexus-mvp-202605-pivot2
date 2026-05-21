@@ -1,0 +1,32 @@
+# Profilo "pt-analysis" (Capability G) — Sprint 1.5.B (TOML).
+# Provider/modello/parametri ereditati dal master.
+
+profilo = "pt-analysis"
+descrizione = "PT Investigation Pack — analisi risultati PT con z-score, classificazione rischio per metodo, trend storico, azioni immediate per casi fuori soglia"
+
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md",
+  "sezioni-ISO/sezione-8-sgq-domande.md",
+  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
+  "NC-patterns/errori-fatali-da-evitare.md",
+]
+
+trigger_prompt = """
+Sulla base della tua identità di system context, esegui questo compito.
+Input: risultati PT con z-score (CSV) + elenco metodi del laboratorio (md)
++ idealmente storico 2-3 anni (CSV) per trend.
+Produci un PT Investigation Pack in ESATTAMENTE 4 sezioni numerate
+"## 1." → "## 4." nell'ordine: (1) riassunto esecutivo, (2) classificazione
+rischio per metodo con livelli "alto" / "medio" / "basso", (3) trend storico
+per i metodi peggiori (collegamento ai 2-3 anni precedenti se disponibili),
+(4) azioni immediate per z-score fuori soglia (|z|>2 = questionabile, |z|>3
+= non soddisfacente). Cita SOLO codici PT presenti nei risultati e SOLO
+codici metodo presenti nell'elenco. NON inventare codici. Tono ispettivo.
+"""
+
+[output.frontmatter_default]
+tipo = "pt_investigation_pack"
+stato_qm = "bozza_da_validare_qm"
+profilo_labnexus = "pt-analysis"

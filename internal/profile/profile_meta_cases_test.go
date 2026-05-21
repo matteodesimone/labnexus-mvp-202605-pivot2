@@ -68,17 +68,19 @@ func TestMetaPromptCases(t *testing.T) {
 		if !strings.HasPrefix(name, "caso-") {
 			continue
 		}
-		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") {
+		// Sprint 1.5.B post-migration: il formato corrente è TOML, ma accettiamo
+		// anche YAML per backward compat se Denis ha esempi storici.
+		if !strings.HasSuffix(name, ".yml") && !strings.HasSuffix(name, ".yaml") && !strings.HasSuffix(name, ".toml") {
 			continue
 		}
 		yamlFiles = append(yamlFiles, filepath.Join(casiDir, name))
 	}
 
-	// RED phase: nessun caso-*.yml committato → fail con messaggio
+	// RED phase: nessun caso-*.{toml,yml} committato → fail con messaggio
 	// diagnostico esplicito (Matteo deve eseguire i 3 casi manualmente in
-	// Claude esterno e committare i YAML).
+	// Claude esterno e committare i file in formato corrente TOML).
 	if len(yamlFiles) == 0 {
-		t.Fatalf("FR-22 red phase: 0 YAML in %s — Matteo deve eseguire manualmente i 3 casi inventati (semplice/medio/ambiguo) in Claude esterno con docs/meta-prompt-genera-profilo.md, salvare gli output come caso-1-semplice.yml, caso-2-medio.yml, caso-3-ambiguo.yml. Vedi README.md della cartella per istruzioni.", casiDir)
+		t.Fatalf("FR-22 red phase: 0 casi in %s — Matteo deve eseguire manualmente i 3 casi inventati (semplice/medio/ambiguo) in Claude esterno con docs/meta-prompt-genera-profilo.md, salvare gli output come caso-1-semplice.toml, caso-2-medio.toml, caso-3-ambiguo.toml (formato Sprint 1.5.B). Vedi README.md della cartella per istruzioni.", casiDir)
 	}
 
 	// Idealmente esattamente 3 casi (FR-22). Più sono OK; meno è un

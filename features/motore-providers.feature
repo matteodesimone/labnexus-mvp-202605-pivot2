@@ -10,7 +10,7 @@ Funzionalità: Motore LabNexus — provider Ollama e EUrouter, streaming, progre
 
   Scenario: streaming Ollama produce token incrementali
     Dato che ollama serve è in ascolto su localhost:11434
-    E "./profili/revisione.yml" dichiara provider "ollama" e modello "qwen3:14b-q5_K_M"
+    E "./profili/revisione.toml" dichiara provider "ollama" e modello "qwen3:14b-q5_K_M"
     E la cartella di input contiene un input minimale di test
     Quando lancio "labnexus run --profile revisione --input /tmp/in --output /tmp/out"
     Allora il primo token visibile in stdout arriva entro 5 secondi
@@ -27,7 +27,7 @@ Funzionalità: Motore LabNexus — provider Ollama e EUrouter, streaming, progre
   # --- FR-7: provider EUrouter (SSE) ---
 
   Scenario: streaming EUrouter rispetta SSE OpenAI-compatible
-    Dato che "./profili/debug-eurouter.yml" dichiara provider "eurouter" e modello "mistralai/mistral-large"
+    Dato che "./profili/debug-eurouter.toml" dichiara provider "eurouter" e modello "mistralai/mistral-large"
     E l'env var "EUROUTER_API_KEY" è impostata a un valore valido (test)
     E la cartella di input contiene un input sintetico
     Quando lancio "labnexus run --profile debug-eurouter --input /tmp/in --output /tmp/out"

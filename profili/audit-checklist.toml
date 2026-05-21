@@ -1,0 +1,32 @@
+# Profilo "audit-checklist" (Capability D) — Sprint 1.5.B (TOML).
+# Provider/modello/parametri ereditati dal master.
+
+profilo = "audit-checklist"
+descrizione = "Checklist d'audit interno mirata al risk register — 15-30 domande ispettive raggruppate per area con campioni documentali e livello di rischio"
+
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "MAPPA_ESPLOSA_REQUISITI_ISO17025.md",
+  "sezioni-ISO/sezione-4-requisiti-generali-domande.md",
+  "sezioni-ISO/sezione-5-requisiti-strutturali-domande.md",
+  "sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md",
+  "sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md",
+  "sezioni-ISO/sezione-8-sgq-domande.md",
+]
+
+trigger_prompt = """
+Sulla base della tua identità di system context, esegui questo compito.
+Input: risk register del laboratorio (CSV con voci di rischio per area ISO
+17025) e una descrizione di scope d'audit (md).
+Produci una checklist d'audit operativa: tra 15 e 30 domande ispettive,
+raggruppate in 3-6 aree (heading "### Area …") coerenti con lo scope.
+Per OGNI area indica i "campioni documentali" da richiedere e il "livello
+di rischio" ereditato dal risk register. Le domande devono tradurre rischi
+specifici, non essere generiche. Tono ispettivo. Frontmatter YAML completo.
+"""
+
+[output.frontmatter_default]
+tipo = "audit_checklist"
+stato_qm = "bozza_da_validare_qm"
+profilo_labnexus = "audit-checklist"

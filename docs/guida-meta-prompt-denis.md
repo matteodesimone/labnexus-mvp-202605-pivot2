@@ -62,7 +62,7 @@ labnexus validate <nome> --profiles-dir ./profili --kb-dir ./KB-ispettore
 ​```
 ```
 
-Copia il **contenuto del blocco yaml** (senza i ` ```yaml `) e salvalo in `profili/<nome>.yml`.
+Copia il **contenuto del blocco toml** (senza i ` ```toml `) e salvalo in `profili/<nome>.toml` (Sprint 1.5.B+; in Sprint 1 era `.yml`).
 
 ### 6. Valida lo schema
 
@@ -84,29 +84,51 @@ Output atteso: `schema OK` con exit code 0.
 
 Riportato l'errore a Claude, lui correggerà e ti darà il nuovo YAML. Sostituisci e ri-valida.
 
-### 7. (Opzionale) Esegui un test rapido
+### 7. (Opzionale) Verifica rapida del profilo
 
-Se vuoi testare il profilo con un input sintetico:
+Se vuoi verificare il profilo con un input di esempio prima del primo lavoro reale:
 
 ```bash
-./labnexus check <nome> --input <cartella-test>
+./labnexus check <nome> --input <cartella-input>
 ```
 
 Questo fa un dry-run (parsing + stima token, senza chiamare il modello). Se vuoi vedere il prompt composto:
 
 ```bash
-./labnexus check <nome> --input <cartella-test> --show-prompt
+./labnexus check <nome> --input <cartella-input> --show-prompt
 ```
 
 ⚠ **Attenzione PII**: `--show-prompt` espone il contenuto dei file di input + KB. Non condividere l'output su canali non controllati (ticket, Slack, log condivisi).
 
-### 8. Quando lanciare il profilo reale
+### 8. Aggiungere il profilo come lavoro concierge (Sprint 1.5.C)
+
+**Modalità raccomandata** (auto-discovery): crea una cartella in `lavori/` per il nuovo tipo di lavoro:
+
+```bash
+mkdir lavori/Nuovo-tipo-lavoro\ —\ Profilo\ <nome>
+cd lavori/Nuovo-tipo-lavoro\ —\ Profilo\ <nome>
+# Aggiungi i tuoi file di input reali nella cartella.
+# Crea _labnexus.toml minimal:
+cat > _labnexus.toml << EOF
+profile = "<nome>"
+EOF
+```
+
+Poi:
+```bash
+./labnexus jobs           # vedi il nuovo lavoro autodiscovered
+./labnexus run --job <nome>   # esegui
+```
+
+Output e audit log in `lavori/Nuovo-tipo-lavoro — Profilo <nome>/output/`.
+
+**Modalità classica** (Sprint 1, CLI puro):
 
 ```bash
 ./labnexus run --profile <nome> --input <cartella-input> --output <cartella-output>
 ```
 
-L'output è un file markdown nella cartella scelta. Apri il file, leggi, valuta L1 strutturalmente (le sezioni ci sono? L'output è ben formato?), poi se OK passa a L2 (giudizio qualitativo tuo).
+L'output è un file markdown nella cartella scelta + un `.log` accoppiato (audit trail ISO 17025). Apri il `.md`, leggi, valuta L1 strutturalmente (le sezioni ci sono? L'output è ben formato?), poi se OK passa a L2 (giudizio qualitativo tuo) e annota `valutazione_denis` nel frontmatter del `.md`.
 
 ## Quando NON usare il meta-prompt
 

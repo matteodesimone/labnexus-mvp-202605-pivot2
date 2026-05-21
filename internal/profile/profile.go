@@ -1,4 +1,4 @@
-// Package profile carica e valida i file YAML di profilo LabNexus (FR-3).
+// Package profile carica e valida i file TOML di profilo LabNexus (FR-3, Sprint 1.5.B).
 package profile
 
 import (
@@ -9,34 +9,43 @@ import (
 	"sort"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/BurntSushi/toml"
 )
 
-// MinTriggerLen è la lunghezza minima del trigger_prompt (FR-3).
+// MinTriggerLen è la lunghezza minima del trigger_prompt inline (FR-3).
 const MinTriggerLen = 50
 
 // AllowedProviders elenca i provider supportati (FR-3, FR-7).
 var AllowedProviders = []string{"ollama", "eurouter"}
 
-// Profile è lo schema di un file profili/<nome>.yml.
+// Profile è lo schema di un file profili/<nome>.toml.
+//
+// Sprint 1.5.B (post-pivot-3): Provider, Modello, Temperature, MaxTokens,
+// ContextWindow sono OPZIONALI nello schema (zero-value detection); se vuoti,
+// vengono ereditati dal config master via `internal/config.Merge`. Validate
+// va chiamato sul profilo MERGED, non isolato.
+//
+// TriggerPrompt e TriggerPromptFile sono mutually exclusive (XOR): uno solo
+// dei due deve essere setted (FR-16).
 type Profile struct {
-	Profilo       string   `yaml:"profilo"`
-	Descrizione   string   `yaml:"descrizione"`
-	Provider      string   `yaml:"provider"`
-	Modello       string   `yaml:"modello"`
-	KbFiles       []string `yaml:"kb_files"`
-	TriggerPrompt string   `yaml:"trigger_prompt"`
-	Temperature   float64  `yaml:"temperature,omitempty"`
-	MaxTokens     int      `yaml:"max_tokens,omitempty"`
-	ContextWindow int      `yaml:"context_window,omitempty"`
-	Output        Output   `yaml:"output,omitempty"`
+	Profilo           string   `toml:"profilo"`
+	Descrizione       string   `toml:"descrizione"`
+	Provider          string   `toml:"provider"`
+	Modello           string   `toml:"modello"`
+	KbFiles           []string `toml:"kb_files"`
+	TriggerPrompt     string   `toml:"trigger_prompt"`
+	TriggerPromptFile string   `toml:"trigger_prompt_file"`
+	Temperature       float64  `toml:"temperature"`
+	MaxTokens         int      `toml:"max_tokens"`
+	ContextWindow     int      `toml:"context_window"`
+	Output            Output   `toml:"output"`
 }
 
 // Output configura come l'engine scrive l'output del profilo. Bug #006:
 // FrontmatterDefault sono chiavi/valori che vanno mergeati nel frontmatter
 // dell'output (le chiavi engine-generated vincono in caso di collisione).
 type Output struct {
-	FrontmatterDefault map[string]string `yaml:"frontmatter_default,omitempty"`
+	FrontmatterDefault map[string]string `toml:"frontmatter_default"`
 }
 
 // Load legge e parsa un file di profilo dal path indicato.
@@ -46,19 +55,22 @@ func Load(path string) (*Profile, error) {
 		return nil, fmt.Errorf("profile: lettura %q: %w", path, err)
 	}
 	var p Profile
-	if err := yaml.Unmarshal(data, &p); err != nil {
-		return nil, fmt.Errorf("profile: parse YAML %q: %w", path, err)
+	if err := toml.Unmarshal(data, &p); err != nil {
+		return nil, fmt.Errorf("profile: parse TOML %q: %w", path, err)
 	}
 	return &p, nil
 }
 
 // Validate verifica che il profilo rispetti lo schema (FR-3):
-//   - tutti i campi obbligatori presenti
+//   - tutti i campi obbligatori presenti (post-merge)
 //   - provider in AllowedProviders
-//   - trigger_prompt ≥ MinTriggerLen
-//   - tutti i kb_files esistono in kbDir (path relativo a kbDir).
+//   - trigger_prompt XOR trigger_prompt_file (FR-16)
+//   - trigger_prompt ≥ MinTriggerLen se inline
+//   - tutti i kb_files esistono in kbDir (path relativo a kbDir)
 //
-// Path traversal protetto: ogni kb_file risolto deve restare dentro kbDir (NFR-6).
+// Path traversal protetto su kb_files: ogni file risolto deve restare dentro kbDir (NFR-6).
+// Path traversal su trigger_prompt_file è verificato a runtime da input.ParseTriggerPromptFile
+// (relativo a input dir, non a kbDir).
 func Validate(p *Profile, kbDir string) error {
 	if p == nil {
 		return errors.New("profile: nil")
@@ -81,10 +93,43 @@ func Validate(p *Profile, kbDir string) error {
 	if len(p.KbFiles) == 0 {
 		return errors.New("profile: campo 'kb_files' deve avere almeno un file")
 	}
-	if len(p.TriggerPrompt) < MinTriggerLen {
-		return fmt.Errorf("profile: trigger_prompt troppo corto (%d caratteri), almeno %d caratteri richiesti", len(p.TriggerPrompt), MinTriggerLen)
+	if err := validateTrigger(p); err != nil {
+		return err
 	}
 	return validateKbFiles(p.KbFiles, kbDir)
+}
+
+// validateTrigger applica la regola XOR su trigger_prompt vs trigger_prompt_file (FR-16):
+//   - entrambi setted → errore "mutually exclusive"
+//   - entrambi assenti → errore "trigger_prompt obbligatorio"
+//   - solo trigger_prompt inline → minLen check
+//   - solo trigger_prompt_file → path-safety lexical check (defense-in-depth)
+//     + runtime symlink check via input.ParseTriggerPromptFile
+//
+// Review 1.5.B HIGH-mistral-1 fix: aggiunto static lexical check qui per
+// far emergere path traversal a `labnexus validate` invece che a runtime.
+func validateTrigger(p *Profile) error {
+	hasInline := strings.TrimSpace(p.TriggerPrompt) != ""
+	hasFile := strings.TrimSpace(p.TriggerPromptFile) != ""
+	if hasInline && hasFile {
+		return errors.New("profile: trigger_prompt e trigger_prompt_file mutually exclusive (specifica uno solo dei due)")
+	}
+	if !hasInline && !hasFile {
+		return errors.New("profile: trigger_prompt obbligatorio (inline o file)")
+	}
+	if hasInline && len(p.TriggerPrompt) < MinTriggerLen {
+		return fmt.Errorf("profile: trigger_prompt troppo corto (%d caratteri), almeno %d caratteri richiesti", len(p.TriggerPrompt), MinTriggerLen)
+	}
+	if hasFile {
+		f := p.TriggerPromptFile
+		if strings.Contains(f, "..") {
+			return fmt.Errorf("profile: trigger_prompt_file %q path non consentito (contiene '..' — defense-in-depth lexical check)", f)
+		}
+		if filepath.IsAbs(f) {
+			return fmt.Errorf("profile: trigger_prompt_file %q path non consentito (path assoluto — deve essere relativo a --input)", f)
+		}
+	}
+	return nil
 }
 
 func validateKbFiles(kbFiles []string, kbDir string) error {
@@ -135,7 +180,7 @@ func validateKbFiles(kbFiles []string, kbDir string) error {
 }
 
 // List ritorna l'elenco dei profili in profiliDir, ordinati per nome (per `labnexus list`).
-// Non valida i profili — `validate` è un comando separato.
+// Non valida i profili — `validate` è un comando separato. Sprint 1.5.B: cerca .toml.
 func List(profiliDir string) ([]*Profile, error) {
 	entries, err := os.ReadDir(profiliDir)
 	if err != nil {
@@ -147,7 +192,7 @@ func List(profiliDir string) ([]*Profile, error) {
 			continue
 		}
 		name := e.Name()
-		if !strings.HasSuffix(strings.ToLower(name), ".yml") && !strings.HasSuffix(strings.ToLower(name), ".yaml") {
+		if !strings.HasSuffix(strings.ToLower(name), ".toml") {
 			continue
 		}
 		p, err := Load(filepath.Join(profiliDir, name))

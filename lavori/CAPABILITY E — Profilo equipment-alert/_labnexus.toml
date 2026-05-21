@@ -1,0 +1,6 @@
+# Metadata Sprint 1.5.C — auto-discovery via labnexus jobs.
+# Denis: per cambiare il profile, edita la riga 'profile = "..."'.
+# Per usare un trigger_prompt diverso da quello inline nel profile shippato,
+# scommenta 'trigger_prompt_file' e indica il path relativo (es. .rtf).
+profile = "equipment-alert"
+# trigger_prompt_file = "Prompt_INPUT_Rev.00.rtf"

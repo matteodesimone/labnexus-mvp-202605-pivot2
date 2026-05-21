@@ -64,10 +64,14 @@ Funzionalità: Sprint 1.5.A — Pivot 3 (eurouter default) + CLI puro multipiatt
     Dato che il file di sorgente "features/helpers_test.go" esiste
     Allora il file di sorgente "features/helpers_test.go" non contiene la stringa "LABNEXUS_ALLOW_CLOUD_PROVIDER"
 
-  # --- FR-7: 7 profili shippati con provider eurouter ---
+  # --- FR-7: 7 profili shippati con provider eurouter (ereditato dal master 1.5.B+) ---
+  # Nota Sprint 1.5.B: i 7 profili non dichiarano più `provider` esplicito (vedi
+  # spec FR-13) — è ereditato dal master `labnexus.config.toml`. L'invariante
+  # rilevante è: nessun profilo deve dichiarare provider = "ollama" (override
+  # locale a ollama sarebbe regressione del pivot 3).
 
-  Scenario: tutti i 7 profili shippati dichiarano provider eurouter
-    Allora tutti i profili shippati dichiarano la riga "provider: eurouter"
+  Scenario: nessun profilo shippato dichiara override locale a ollama
+    Allora nessun profilo shippato dichiara la riga "provider = \"ollama\""
     E nessun profilo shippato dichiara la riga "provider: ollama"
 
   # --- FR-7b: audit-trail truthfulness (review finding HIGH-2, 2026-05-21) ---

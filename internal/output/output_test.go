@@ -148,6 +148,36 @@ func TestWrite_EngineKeysWinOverProfileDefaults(t *testing.T) {
 	}
 }
 
+// TestWrite_ValutazioneDenisExternalOwnedPreserved (fix review 1.5.B mistral MEDIUM):
+// FR-24 tabella ownership chiavi frontmatter. `valutazione_denis` è EXTERNAL-OWNED
+// (popolato da Denis post-run). Se il profile-default lo dichiara (es. Denis lo
+// pre-popola in un profilo di workflow specifico), l'engine NON deve sovrascriverlo
+// con stringa vuota (ValutazioneDenis ha yaml:"...,omitempty" — quando non setted
+// dall'engine, viene omesso dal frontmatter renderizzato, e profile-default vince).
+func TestWrite_ValutazioneDenisExternalOwnedPreserved(t *testing.T) {
+	dir := t.TempDir()
+	fm := &output.Frontmatter{
+		Profilo:        "revisione",
+		Modello:        "qwen3.6",
+		Provider:       "eurouter",
+		DataEsecuzione: "2026-05-21T10:00:00+02:00",
+		// ValutazioneDenis NON setted dall'engine (caso normale: nessun runner che
+		// pre-popola la valutazione, Denis la mette manualmente post-run).
+		ProfileDefaults: map[string]string{
+			"valutazione_denis": "validata_con_riserva", // pre-popolato dal profilo
+		},
+	}
+	path, err := output.Write(dir, fm, "body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	content, _ := os.ReadFile(path)
+	s := string(content)
+	if !strings.Contains(s, "valutazione_denis: validata_con_riserva") {
+		t.Errorf("profile-default valutazione_denis deve vincere quando engine omette il campo, got:\n%s", s)
+	}
+}
+
 func TestWrite_NoProfileDefaultsLeavesFrontmatterUnchanged(t *testing.T) {
 	// Backwards-compat: senza ProfileDefaults, comportamento esistente.
 	dir := t.TempDir()

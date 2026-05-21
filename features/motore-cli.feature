@@ -8,7 +8,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
 
   Sfondo:
     Dato che l'eseguibile "labnexus" è installato nella cartella corrente
-    E la cartella "./profili/" contiene almeno "revisione.yml" e "rilievi.yml"
+    E la cartella "./profili/" contiene almeno "revisione.toml" e "rilievi.toml"
     E la cartella "./KB-ispettore/" esiste con i file della KB di Denis
 
   # --- FR-1 / FR-2: CLI subcommands & path ---
@@ -41,27 +41,27 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
   # --- FR-3: schema YAML e comando validate ---
 
   Scenario: validate accetta un profilo valido
-    Dato che esiste "./profili/revisione.yml" con tutti i campi obbligatori e trigger_prompt di 200 caratteri
+    Dato che esiste "./profili/revisione.toml" con tutti i campi obbligatori e trigger_prompt di 200 caratteri
     Quando lancio "labnexus validate revisione"
     Allora exit code è 0
     E stdout contiene "schema OK"
 
   Scenario: validate rifiuta un profilo con trigger_prompt troppo corto
-    Dato che esiste "./profili/test-corto.yml" con trigger_prompt di 20 caratteri
+    Dato che esiste "./profili/test-corto.toml" con trigger_prompt di 20 caratteri
     Quando lancio "labnexus validate test-corto"
     Allora exit code è 2
     E stderr contiene "trigger_prompt"
     E stderr contiene "almeno 50 caratteri"
 
   Scenario: validate rifiuta un profilo con kb_files inesistente
-    Dato che esiste "./profili/test-kb-mancante.yml" con kb_files che include "non-esiste.md"
+    Dato che esiste "./profili/test-kb-mancante.toml" con kb_files che include "non-esiste.md"
     Quando lancio "labnexus validate test-kb-mancante"
     Allora exit code è 2
     E stderr contiene "non-esiste.md"
     E stderr contiene "non esiste"
 
   Scenario: validate rifiuta provider non ammesso
-    Dato che esiste "./profili/test-provider.yml" con provider "openai"
+    Dato che esiste "./profili/test-provider.toml" con provider "openai"
     Quando lancio "labnexus validate test-provider"
     Allora exit code è 2
     E stderr contiene "provider"
@@ -93,7 +93,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
   # --- FR-5: composizione prompt ---
 
   Scenario: check produce un'anteprima del prompt composto
-    Dato che "./profili/revisione.yml" dichiara kb_files = ["CLAUDE.md", "come-pensa-un-ispettore.md"]
+    Dato che "./profili/revisione.toml" dichiara kb_files = ["CLAUDE.md", "come-pensa-un-ispettore.md"]
     E la cartella "/tmp/input-test1" contiene 3 file di test
     Quando lancio "labnexus check revisione --input /tmp/input-test1 --show-prompt"
     Allora stdout mostra un system_message che è la concatenazione di CLAUDE.md e come-pensa-un-ispettore.md separati da "---"
@@ -105,7 +105,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
   # --- FR-6: stima token ---
 
   Scenario: warning sopra il 70% del context window
-    Dato che "./profili/revisione.yml" ha context_window = 128000
+    Dato che "./profili/revisione.toml" ha context_window = 128000
     E la composizione del prompt produce ~96000 token stimati (char_count/4)
     Quando lancio "labnexus check revisione --input /tmp/input-pesante"
     Allora exit code è 0
@@ -113,7 +113,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
     E stderr contiene "75%" oppure una percentuale > 70%
 
   Scenario: errore sopra il 100% del context window
-    Dato che "./profili/revisione.yml" ha context_window = 128000
+    Dato che "./profili/revisione.toml" ha context_window = 128000
     E la composizione del prompt produce ~140000 token stimati
     Quando lancio "labnexus run --profile revisione --input /tmp/input-troppo-grande --output /tmp/out"
     Allora exit code è 2
@@ -124,7 +124,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
   # --- FR-12: env var EUrouter ---
 
   Scenario: provider eurouter senza API key
-    Dato che "./profili/debug-eurouter.yml" dichiara provider "eurouter"
+    Dato che "./profili/debug-eurouter.toml" dichiara provider "eurouter"
     E l'env var "EUROUTER_API_KEY" non è impostata
     Quando lancio "labnexus run --profile debug-eurouter --input /tmp/in --output /tmp/out"
     Allora exit code è 2
@@ -132,7 +132,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
     E nessuna chiamata di rete è stata effettuata
 
   Scenario: override del provider via flag --provider
-    Dato che "./profili/revisione.yml" dichiara provider "ollama"
+    Dato che "./profili/revisione.toml" dichiara provider "ollama"
     E l'env var "EUROUTER_API_KEY" è impostata
     Quando lancio "labnexus run --profile revisione --provider eurouter --input /tmp/in --output /tmp/out"
     Allora la chiamata di rete va a "api.eurouter.ai"
@@ -140,7 +140,7 @@ Funzionalità: Motore LabNexus — CLI, schema profilo, parsing input, prompt, t
     E il frontmatter dell'output riporta provider: "eurouter"
 
   Scenario: override del provider via env var LABNEXUS_PROVIDER
-    Dato che "./profili/revisione.yml" dichiara provider "ollama"
+    Dato che "./profili/revisione.toml" dichiara provider "ollama"
     E l'env var "LABNEXUS_PROVIDER" è impostata a "eurouter"
     E l'env var "EUROUTER_API_KEY" è impostata
     Quando lancio "labnexus run --profile revisione --input /tmp/in --output /tmp/out"

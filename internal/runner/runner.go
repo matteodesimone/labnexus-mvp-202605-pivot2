@@ -14,6 +14,7 @@ import (
 
 	"golang.org/x/term"
 
+	"github.com/labnexus/labnexus/internal/config"
 	"github.com/labnexus/labnexus/internal/input"
 	"github.com/labnexus/labnexus/internal/output"
 	"github.com/labnexus/labnexus/internal/profile"
@@ -31,6 +32,7 @@ type Config struct {
 	ProviderOverride string
 	ProfiliDir       string
 	KbDir            string
+	ConfigPath       string // Sprint 1.5.B: path al labnexus.config.toml master (opzionale)
 	DryRun           bool
 	ShowPrompt       bool
 }
@@ -62,7 +64,7 @@ func Run(cfg Config) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	composed, err := composePromptFromInputs(p, kbTexts, parsed, log)
+	composed, err := composePromptFromInputs(p, kbTexts, parsed, cfg.InputDir, log)
 	if err != nil {
 		return nil, err
 	}
@@ -94,18 +96,63 @@ func validateConfig(cfg *Config) error {
 	return nil
 }
 
-// loadAndValidateProfile carica e valida il profilo da disco.
+// loadAndValidateProfile carica il config master (se disponibile), carica
+// il profilo, fa merge master→profile, propaga EurouterAPIKey + OllamaEndpoint
+// del master a env vars (fallback se non già setted), valida il merged
+// (Sprint 1.5.B).
 func loadAndValidateProfile(cfg Config, log *runlog.Logger) (*profile.Profile, error) {
 	log.BeginStep("caricamento profilo")
 	defer log.EndStep()
+	master := loadMasterOptional(cfg.ConfigPath, log)
+	applyMasterToEnv(master)
 	p, err := loadProfile(cfg.ProfiliDir, cfg.ProfileName)
 	if err != nil {
 		return nil, err
 	}
-	if err := profile.Validate(p, cfg.KbDir); err != nil {
+	merged := config.Merge(master, p)
+	if err := profile.Validate(merged, cfg.KbDir); err != nil {
 		return nil, fmt.Errorf("runner: validate profilo: %w", err)
 	}
-	return p, nil
+	return merged, nil
+}
+
+// applyMasterToEnv propaga EurouterAPIKey + OllamaEndpoint del master a env
+// vars per il provider runtime (FR-11 spec compliance, fix review 1.5.B
+// HIGH-config-2). Precedenza env > master: se l'env var è già setted, NON
+// viene sovrascritta. Permette a Denis di editare un solo file (master) per
+// configurare API key + endpoint, senza export manuale di env vars.
+func applyMasterToEnv(master *config.Master) {
+	if master == nil {
+		return
+	}
+	if master.EurouterAPIKey != "" && os.Getenv("EUROUTER_API_KEY") == "" {
+		_ = os.Setenv("EUROUTER_API_KEY", master.EurouterAPIKey)
+	}
+	if master.OllamaEndpoint != "" && os.Getenv("LABNEXUS_OLLAMA_ENDPOINT") == "" {
+		_ = os.Setenv("LABNEXUS_OLLAMA_ENDPOINT", master.OllamaEndpoint)
+	}
+}
+
+// loadMasterOptional carica labnexus.config.toml se esiste, altrimenti ritorna
+// nil (profile-only mode). Errori di sintassi sono fatal.
+// Fallback CWD: se path non esiste, prova `./labnexus.config.toml`.
+func loadMasterOptional(path string, log *runlog.Logger) *config.Master {
+	if path == "" {
+		path = "labnexus.config.toml"
+	}
+	if _, err := os.Stat(path); err != nil {
+		cwdPath := "labnexus.config.toml"
+		if _, err := os.Stat(cwdPath); err != nil {
+			return nil
+		}
+		path = cwdPath
+	}
+	master, err := config.Load(path)
+	if err != nil {
+		log.Warn("config master %q non valido: %v (procedo senza master)", path, err)
+		return nil
+	}
+	return master
 }
 
 // loadKBTexts legge dal filesystem i file della KB-ispettore citati nel profilo.
@@ -130,14 +177,30 @@ func parseInputDir(cfg Config, log *runlog.Logger) (*input.ParsedResult, error) 
 }
 
 // composePromptFromInputs costruisce system+user message per il provider.
-func composePromptFromInputs(p *profile.Profile, kbTexts []string, parsed *input.ParsedResult, log *runlog.Logger) (*prompt.Composed, error) {
+// Sprint 1.5.B: se profile.TriggerPromptFile è setted, carica il file
+// referenziato (relativo a inputDir, path-safe) e lo usa come trigger.
+func composePromptFromInputs(p *profile.Profile, kbTexts []string, parsed *input.ParsedResult, inputDir string, log *runlog.Logger) (*prompt.Composed, error) {
 	log.BeginStep("composizione prompt")
 	defer log.EndStep()
 	inputMap := make(map[string]string, len(parsed.Files))
 	for _, f := range parsed.Files {
 		inputMap[f.Name] = f.Text
 	}
-	return prompt.Compose(p.TriggerPrompt, kbTexts, inputMap)
+	trigger, err := resolveTrigger(p, inputDir)
+	if err != nil {
+		return nil, err
+	}
+	return prompt.Compose(trigger, kbTexts, inputMap)
+}
+
+// resolveTrigger ritorna il trigger inline (p.TriggerPrompt) oppure carica
+// il file referenziato da p.TriggerPromptFile via input.ParseTriggerPromptFile
+// (FR-17 + NFR-6 path-safe). Validate ha già garantito XOR + minLen.
+func resolveTrigger(p *profile.Profile, inputDir string) (string, error) {
+	if p.TriggerPromptFile != "" {
+		return input.ParseTriggerPromptFile(inputDir, p.TriggerPromptFile)
+	}
+	return p.TriggerPrompt, nil
 }
 
 // checkTokensAgainstContext valuta la stima token vs context_window (FR-6).
@@ -192,20 +255,30 @@ func isStdoutTTY() bool {
 }
 
 // streamAndWriteOutput chiama il provider, drena lo stream e scrive il file di output.
+// Sprint 1.5.C (NFR-11 audit trail): apre un .log accoppiato all'.md e usa
+// io.MultiWriter per scrivere il logger contemporaneamente su stderr + log file.
+// Body streaming live (FR-35): i token chunks vanno raw su stderr (TTY) +
+// sempre al log file.
 func streamAndWriteOutput(cfg Config, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, log *runlog.Logger) (*Result, error) {
 	prov, err := provider.Select(cfg.ProviderOverride, os.Getenv("LABNEXUS_PROVIDER"), p.Provider)
 	if err != nil {
 		return nil, err
 	}
-	log.BeginStep("chiamata provider " + prov.Name())
 	started := time.Now()
-	body, stato, err := callProvider(prov, composed, p, log)
+	baseName := outputBaseName(p, parsed, started)
+	logFile, multiLog, bodyWriter := openAuditTrail(cfg.OutputDir, baseName, log)
+	if logFile != nil {
+		defer logFile.Close()
+	}
+	multiLog.BeginStep("chiamata provider " + prov.Name())
+	body, stato, err := callProviderWithStreaming(prov, composed, p, multiLog, bodyWriter)
 	duration := time.Since(started)
-	log.EndStep()
+	multiLog.EndStep()
 	if err != nil {
 		return nil, err
 	}
-	outPath, err := writeOutput(cfg, p, prov, parsed, check, body, stato, duration, started, log)
+	logRelPath := baseName + ".log"
+	outPath, err := writeOutput(cfg, p, prov, parsed, check, body, stato, duration, started, multiLog, logRelPath)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +290,54 @@ func streamAndWriteOutput(cfg Config, p *profile.Profile, composed *prompt.Compo
 	}, nil
 }
 
-func callProvider(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, log *runlog.Logger) (string, string, error) {
+// outputBaseName ritorna il base name del file output (senza estensione).
+// Pattern Sprint 1: <timestamp>_<profile>_<input_descriptor>.
+func outputBaseName(p *profile.Profile, parsed *input.ParsedResult, started time.Time) string {
+	ts := started.Format("2006-01-02T150405")
+	descriptor := ""
+	if len(parsed.Files) > 0 {
+		first := parsed.Files[0].Name
+		if idx := strings.LastIndex(first, "."); idx > 0 {
+			first = first[:idx]
+		}
+		descriptor = "_" + first
+	}
+	return ts + "_" + p.Profilo + descriptor
+}
+
+// openAuditTrail apre il .log accoppiato e crea un MultiWriter logger.
+// Sprint 1.5.C FR-32/NFR-11. Se l'apertura fallisce, fallback al logger originale
+// (logging continua, audit trail incompleto ma run non si rompe).
+// Ritorna (logFile, multiLog, bodyWriter). bodyWriter è dove drainStream scrive
+// i token chunks raw: stderr+logFile in TTY, logFile only in non-TTY (FR-35).
+//
+// Fix review 1.5.C MEDIUM-Claude-2: usa isStderrTTY (stream effettivo del body
+// streaming) invece di isStdoutTTY (era bug subtle che funzionava per il caso
+// comune ma falliva con `2>/dev/null`).
+func openAuditTrail(outputDir, baseName string, fallback *runlog.Logger) (*os.File, *runlog.Logger, io.Writer) {
+	if outputDir == "" {
+		return nil, fallback, io.Discard
+	}
+	logFile, err := runlog.OpenLogFile(outputDir, baseName)
+	if err != nil {
+		fallback.Warn("audit trail: impossibile aprire .log accoppiato (%v) — log file disabilitato per questo run", err)
+		return nil, fallback, io.Discard
+	}
+	multiLog := runlog.NewMulti(os.Stderr, logFile)
+	if isStderrTTY() {
+		return logFile, multiLog, io.MultiWriter(os.Stderr, logFile)
+	}
+	return logFile, multiLog, logFile
+}
+
+// isStderrTTY ritorna true se os.Stderr è un terminale interattivo.
+// Usato per decidere se il body streaming live va anche su stderr (TTY) o
+// solo nel log file (non-TTY pipe/redirect). Fix review 1.5.C MEDIUM-Claude-2.
+func isStderrTTY() bool {
+	return term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, log *runlog.Logger, bodyWriter io.Writer) (string, string, error) {
 	ch, err := prov.Stream(context.Background(), composed.System, composed.User, provider.Options{
 		Modello:       p.Modello,
 		Temperature:   p.Temperature,
@@ -227,11 +347,11 @@ func callProvider(prov provider.LLMProvider, composed *prompt.Composed, p *profi
 	if err != nil {
 		return "", "", err
 	}
-	body, stato := drainStream(ch, log)
+	body, stato := drainStreamWithBody(ch, log, bodyWriter)
 	return body, stato, nil
 }
 
-func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, parsed *input.ParsedResult, check *tokens.CheckResult, body, stato string, duration time.Duration, started time.Time, log *runlog.Logger) (string, error) {
+func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, parsed *input.ParsedResult, check *tokens.CheckResult, body, stato string, duration time.Duration, started time.Time, log *runlog.Logger, logRelPath string) (string, error) {
 	log.BeginStep("scrittura output")
 	defer log.EndStep()
 	fileNames := make([]string, len(parsed.Files))
@@ -247,6 +367,7 @@ func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, pars
 		TokenStimati:    check.Tokens,
 		FileInput:       fileNames,
 		Stato:           stato,
+		LogFile:         logRelPath,
 		ProfileDefaults: p.Output.FrontmatterDefault,
 	}
 	outPath, err := output.Write(cfg.OutputDir, fm, body)
@@ -265,13 +386,17 @@ func exitCodeFor(stato string) int {
 }
 
 func loadProfile(profiliDir, name string) (*profile.Profile, error) {
-	for _, ext := range []string{".yml", ".yaml"} {
-		path := filepath.Join(profiliDir, name+ext)
-		if _, err := os.Stat(path); err == nil {
-			return profile.Load(path)
-		}
+	// Fix review 1.5.C CRITICAL-mistral-3: defense-in-depth contro
+	// path traversal via --profile flag o _labnexus.toml malformato.
+	// name DEVE essere identifier semplice, no path components.
+	if strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+		return nil, fmt.Errorf("runner: nome profilo %q non consentito (path components rifiutati)", name)
 	}
-	return nil, fmt.Errorf("runner: profilo non trovato: %s/%s.{yml,yaml}", profiliDir, name)
+	path := filepath.Join(profiliDir, name+".toml")
+	if _, err := os.Stat(path); err == nil {
+		return profile.Load(path)
+	}
+	return nil, fmt.Errorf("runner: profilo non trovato: %s/%s.toml", profiliDir, name)
 }
 
 func loadKB(kbDir string, files []string) ([]string, error) {
@@ -296,6 +421,13 @@ func loadKB(kbDir string, files []string) ([]string, error) {
 //   - Al primo token: stampa il TTFT (time-to-first-token) e segna l'inizio della generazione.
 //   - A fine stream: log.StreamEnd con statistica finale.
 func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, string) {
+	return drainStreamWithBody(ch, log, io.Discard)
+}
+
+// drainStreamWithBody è la variant di drainStream che riceve anche un
+// bodyWriter dove scrivere raw i token chunks (FR-35 body streaming live).
+// In TTY: bodyWriter = io.MultiWriter(stderr, logFile). Non-TTY: logFile only.
+func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter io.Writer) (string, string) {
 	var b strings.Builder
 	// Default "interrotto": diventa "completato" solo se riceviamo esplicitamente done:true (EC-8).
 	stato := "interrotto"
@@ -347,6 +479,8 @@ func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, st
 						time.Since(started).Round(time.Millisecond))
 				}
 				b.WriteString(ev.Token)
+				// FR-35 body streaming live: scrivi raw su bodyWriter (TTY: stderr+logFile; non-TTY: logFile only).
+				_, _ = bodyWriter.Write([]byte(ev.Token))
 				tokenCount++
 			}
 			if ev.Done {

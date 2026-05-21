@@ -85,21 +85,25 @@ func newScenarioState() (*scenarioState, error) {
 	if err := os.WriteFile(filepath.Join(s.kbDir, "CLAUDE.md"), []byte("# CLAUDE.md test stub\nIdentità ispettore."), 0o644); err != nil {
 		return nil, err
 	}
-	// Profili default disponibili per ogni scenario (i singoli step possono sovrascrivere)
+	// Profili default disponibili per ogni scenario (i singoli step possono sovrascrivere).
+	// Sprint 1.5.B: stub in formato TOML (minimalProfileTOML, FR-23). I campi
+	// opzionali (provider, modello) sono dichiarati nello stub per i test BDD
+	// che eseguono senza master config; nei test che esercitano il merge,
+	// il master fornisce i defaults e il profile li omette.
 	defaultProfile := func(name string) string {
-		return fmt.Sprintf(`profilo: %s
-descrizione: profilo di test default per %s
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-trigger_prompt: |
-  Trigger prompt di test di lunghezza sufficiente per soddisfare la soglia
-  minima di 50 caratteri (FR-3). Tono ispettivo.
+		return fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test default per %s"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = """
+Trigger prompt di test di lunghezza sufficiente per soddisfare la soglia
+minima di 50 caratteri (FR-3). Tono ispettivo.
+"""
 `, name, name)
 	}
 	for _, name := range []string{"revisione", "rilievi"} {
-		if err := os.WriteFile(filepath.Join(s.profiliDir, name+".yml"), []byte(defaultProfile(name)), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(s.profiliDir, name+".toml"), []byte(defaultProfile(name)), 0o644); err != nil {
 			return nil, err
 		}
 	}
@@ -151,9 +155,9 @@ func (s *scenarioState) ensureTmpDir(symbolic string) string {
 	return d
 }
 
-// writeProfile crea un file in profiliDir col contenuto YAML dato.
+// writeProfile crea un file in profiliDir col contenuto TOML dato (Sprint 1.5.B).
 func (s *scenarioState) writeProfile(name, body string) error {
-	p := filepath.Join(s.profiliDir, name+".yml")
+	p := filepath.Join(s.profiliDir, name+".toml")
 	return os.WriteFile(p, []byte(body), 0o644)
 }
 

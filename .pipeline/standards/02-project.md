@@ -11,6 +11,16 @@ Stack: go-cli
 - **Who**: utente operativo è **Denis Brazzo** (QM esperto SGQ + ispettore ACCREDIA, laboratorio del cliente). Stakeholder cliente: **Stefano Fiorina**. CTO interno: **Matteo De Simone**.
 - **Stage**: Sprint 1 chiuso AI-side 2026-05-21; Sprint 1.5 (refactor pre-handoff Denis) **in corso**, sub-fetta 1.5.A "pivot 3 + CLI puro" implementata e in review.
 
+### Sprint 1.5.C amendments (concierge mode + audit trail + lavori/ rename)
+
+> **Aggiunte 1.5.C (2026-05-22)** rispetto alle voci storiche più sotto:
+
+- **Cartella `lavori/` con auto-discovery** (FR-25, FR-28, NFR-10): la cartella `data/` è stata rinominata `lavori/`. Ogni sotto-cartella ha un `_labnexus.toml` (2 righe: `profile` + opzionale `trigger_prompt_file`) che la identifica come job auto-discovered. Fallback convention naming: regex `Profilo (.+)$` sul nome cartella se metadata manca. **NIENTE hardcoding di nomi cartelle nello script `.command` o nel codice** — Denis può aggiungere/rimuovere/rinominare lavori senza modifiche a config centrale.
+- **Subcommand `labnexus jobs` + flag `--job`** (FR-28/29): `labnexus jobs` lista i lavori auto-discovered (default human-readable; `--json` per backend). `labnexus run --job <nome>` esegue headless via auto-discovery: profile + input_dir + output_dir tutti risolti dal job. Coesiste con `--profile/--input/--output` (Sprint 1 invariato).
+- **Audit trail multi-writer** (FR-32/33/34, NFR-11): per ogni run, il logger scrive contemporaneamente su `os.Stderr` (live) e su `<output_dir>/<basename>.log` (audit trail file). Pattern `io.MultiWriter`. Frontmatter MD output include nuovo campo `log_file: <path-relativo>` per cross-reference bozza ↔ audit (FR-34). Engine-owned per ownership table (FR-24).
+- **Body streaming live in stderr** (FR-35): durante chiamata provider, ogni token chunk viene scritto raw su stderr (TTY) e sempre sul log file. Denis vede il modello "pensare" in tempo reale.
+- **Pre-check API key all'avvio** (FR-36): `labnexus.command` shell-side controlla che `labnexus.config.toml` abbia `eurouter_api_key` non vuoto (o env `EUROUTER_API_KEY` setted) PRIMA del binary fork. Messaggio operativo italiano + exit 2 se manca.
+
 ### Sprint 1.5 amendments (post-pivot-3 + decommissione bundle macOS)
 
 > **Queste decisioni invalidano alcune voci di "Architecture Overview" e "Key Decisions Already Made" più sotto.** Le voci originali sono mantenute per tracciabilità storica; in caso di conflitto, gli amendments di Sprint 1.5 prevalgono.
@@ -22,7 +32,7 @@ Stack: go-cli
 
 ### Architecture Overview
 
-Singolo binario Go (cross-platform `darwin/arm64` + `linux/amd64`) lanciabile da terminale o, su macOS, anche con doppio click su `scripts/labnexus.command` (launcher bash 2 righe che apre Terminal nella cartella dello zip). Per ciascuna delle 7 capability esiste un file di profilo YAML (`profili/<nome>.yml`) che dichiara: file della KB-ispettore da iniettare come system context, `trigger_prompt` come user prompt, provider e parametri. A ogni esecuzione la KB-ispettore viene **riletta dal filesystem** (no embedding, no RAG, no DB). Provider default Sprint 1.5: **EUrouter cloud EU-GDPR** su `api.eurouter.ai` (SSE OpenAI-compatible); provider opzionale Ollama su `localhost:11434` (NDJSON streaming) per utenti con hardware adeguato. Output markdown in cartella dedicata con frontmatter YAML. Streaming con progress bar.
+Singolo binario Go (cross-platform `darwin/arm64` + `linux/amd64`) lanciabile da terminale o, su macOS, anche con doppio click su `scripts/labnexus.command` (launcher bash 2 righe che apre Terminal nella cartella dello zip). Per ciascuna delle 7 capability esiste un file di profilo TOML (`profili/<nome>.toml`, Sprint 1.5.B migration da YAML) che dichiara: file della KB-ispettore da iniettare come system context, `trigger_prompt` come user prompt, e opzionalmente provider/modello/parametri (ereditati dal master `labnexus.config.toml` al root se non specificati). A ogni esecuzione la KB-ispettore viene **riletta dal filesystem** (no embedding, no RAG, no DB). Provider default Sprint 1.5: **EUrouter cloud EU-GDPR** su `api.eurouter.ai` (SSE OpenAI-compatible); provider opzionale Ollama su `localhost:11434` (NDJSON streaming) per utenti con hardware adeguato. Output markdown in cartella dedicata con frontmatter YAML (convenzione Obsidian/Hugo invariata). Streaming con progress bar.
 
 > **Storico (pre-Sprint-1.5):** il deliverable Sprint 1 era un bundle `.app` macOS con tre modalità (doppio click + `osascript` dialog, drag&drop di cartella sull'icona, riga di comando) e provider locale Ollama. Decommissionato in sub-fetta 1.5.A.
 
@@ -55,7 +65,7 @@ Singolo binario Go (cross-platform `darwin/arm64` + `linux/amd64`) lanciabile da
 ### Domain Vocabulary
 
 - **gettone** — unità di complessità relativa, NON un'ora. Minimo 1, nessuna attività vale meno.
-- **profilo** — file YAML in `profili/<nome>.yml` che configura una capability dell'eseguibile.
+- **profilo** — file TOML in `profili/<nome>.toml` (Sprint 1.5.B; era `.yml` in Sprint 1) che configura una capability dell'eseguibile. Campi opzionali ereditati dal config master.
 - **KB-ispettore** — knowledge base scritta da Denis Brazzo, iniettata come system context. Vive in `KB-ispettore/`. **Fonte canonica** durante lo sprint; iterazioni successive le fa Denis localmente.
 - **trigger_prompt** — user prompt scritto dal team CTO, l'unico testo nostro per profilo. 5-10 righe, minimo 50 caratteri.
 - **capability** — task LLM-critical del sistema AICertus completo. Le 7 dello sprint hanno sigle A-G:
@@ -113,7 +123,8 @@ UI_COMPONENTS: none
 ## Project-Specific Conventions
 
 - **Layout filesystem dell'eseguibile** (path relativi alla cartella di `labnexus`):
-  - `profili/<nome>.yml` — file di configurazione per capability
+  - `labnexus.config.toml` — config master con defaults globali (Sprint 1.5.B+, ereditati dai profili)
+  - `profili/<nome>.toml` — file di configurazione per capability (Sprint 1.5.B+; era `.yml` in Sprint 1)
   - `KB-ispettore/` — knowledge base di Denis (path nei `kb_files:` dei profili sono relativi qui)
 - **Nome file di output**: `<output_dir>/<timestamp>_<profile>_<input_descriptor>.md` con frontmatter YAML (data esecuzione, profilo, modello, provider, durata, token stimati, file di input).
 - **Provider names ammessi**: `ollama` | `eurouter`. Default Sprint 1: `ollama`. **Default Sprint 1.5+ (post-pivot-3): `eurouter`**. Vedi "Sprint 1.5 amendments".

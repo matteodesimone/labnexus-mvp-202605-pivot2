@@ -2,6 +2,55 @@
 
 Per Denis (QM) e per chi userà l'eseguibile dopo Sprint 1.
 
+> **Sprint 1.5.C — Concierge mode**: la cartella `lavori/` contiene i tuoi lavori reali (CAPABILITY A-G). Ogni cartella di lavoro ha un `_labnexus.toml` che dichiara quale profile usare. `labnexus jobs` ti mostra la lista, `labnexus run --job <nome>` esegue. Output e audit log finiscono in `lavori/<X>/output/`.
+
+## Workflow concierge — uso quotidiano
+
+### Vedere i lavori disponibili
+```
+labnexus jobs
+```
+Stampa la lista dei lavori auto-discovered in `lavori/` con nome + profile + input_dir. Variante `labnexus jobs --json` per scripting.
+
+### Eseguire un lavoro
+```
+labnexus run --job <nome>
+```
+Risolve automaticamente profile + input + output (default: `lavori/<X>/output/`). Esempio: `labnexus run --job revisione` esegue il job che ha nel suo `_labnexus.toml` `profile = "revisione"`.
+
+Durante l'esecuzione vedrai i log per step in tempo reale (caricamento KB, parsing input, stima context, chiamata provider). Quando il modello inizia a rispondere, **il body del messaggio scorre live in stderr** (FR-35): vedi il modello "pensare" mentre genera.
+
+### Leggere l'output
+Ogni esecuzione produce 2 file in `lavori/<X>/output/`:
+- `<timestamp>_<profile>_<input>.md` — la **bozza** prodotta dal modello, con frontmatter YAML (profilo, modello, provider, data, durata, token). Aprila con Obsidian o un editor di markdown.
+- `<timestamp>_<profile>_<input>.log` — l'**audit trail** ISO 17025 con dettagli per step (KB iniettati, dimensioni input, throughput streaming). Riferimento nel frontmatter del `.md` come `log_file:`.
+
+### Validazione L2 (Quality Manager)
+Dopo aver letto la bozza:
+1. Valuta qualità ispettiva, profondità, eventuali allucinazioni
+2. Edita il frontmatter del `.md` aggiungendo:
+   ```yaml
+   valutazione_denis: validata        # | validata_con_riserva | non_validata
+   ```
+3. Il campo `valutazione_denis` è **EXTERNAL-OWNED** (FR-24): l'engine non lo sovrascrive nei run successivi. La tua valutazione resta lì.
+
+### Aggiungere un nuovo lavoro
+**Modalità A (metadata esplicito)**: crea una nuova cartella in `lavori/`, dentro mette i file di input + un `_labnexus.toml` con 1 riga:
+```toml
+profile = "<nome del profilo>"
+```
+Opzionale: `trigger_prompt_file = "Prompt_INPUT.rtf"` se vuoi un trigger custom per questo lavoro (editabile in Word/Pages).
+
+**Modalità B (convention naming)**: nomina la cartella `<descrizione libera> — Profilo <nome>`. Esempio: `lavori/Audit ACCREDIA 2026 — Profilo audit-checklist/`. Sistema riconosce automaticamente il profile dalla parte `Profilo <nome>` senza serve `_labnexus.toml`.
+
+Entrambe le modalità: `labnexus jobs` mostra il nuovo lavoro al primo lancio. Nessun restart o ri-compile necessario.
+
+### Setup iniziale
+La cartella `lavori/` è già pre-popolata con i 7 lavori CAPABILITY A-G (revisione, rilievi, review-pack, audit-checklist, equipment-alert, competence-gap, pt-analysis). Ogni cartella ha già `_labnexus.toml` minimal. Puoi:
+- **Eseguirli as-is** con i file dimostrativi inclusi
+- **Sostituire i file** con i tuoi materiali reali (mantieni la struttura di sotto-cartelle se presente)
+- **Aggiungere trigger_prompt_file**: scommenta la riga in `_labnexus.toml` se vuoi customizzare il prompt
+
 ## Cosa fa LabNexus
 
 Esegue **una capability ispettiva alla volta** del modello AICertus. La capability viene scelta tramite un **profilo YAML** (`revisione`, `rilievi`, ecc.). Il modello AI è **Qwen 3** via **EUrouter** (gateway cloud EU-GDPR su `api.eurouter.ai`) per default — Sprint 1.5 post-pivot-3. I dati di input transitano a EUrouter; il cliente (Stefano Fiorina) ha formalmente approvato questo flusso. DPA contrattuale è gestito lato cliente.
@@ -98,7 +147,7 @@ Ogni esecuzione produce **un file markdown** in `<output>/<timestamp>_<profilo>_
 ---
 profilo: revisione
 modello: qwen3.6
-provider: ollama
+provider: eurouter
 data_esecuzione: 2026-05-19T08:45:00+02:00
 durata_secondi: 42.3
 token_stimati: 1234

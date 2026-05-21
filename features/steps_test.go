@@ -140,7 +140,7 @@ func registerSteps(ctx *godog.ScenarioContext) {
 	ctx.Step(`^il frontmatter contiene "([^"]*)"$`, fmHasString)
 
 	// --- profili A/B (Livello 1 strutturale; Livello 2 = Denis fuori BDD) ---
-	ctx.Step(`^(?:che )?il profilo "revisione" è installato in \./profili/revisione\.yml$`, installRevisione)
+	ctx.Step(`^(?:che )?il profilo "revisione" è installato in \./profili/revisione\.toml$`, installRevisione)
 	ctx.Step(`^(?:che )?il profilo "rilievi" è installato$`, installRilievi)
 	ctx.Step(`^(?:che )?la cartella di input contiene PG_RISK_LAB_Rev_00\.docx \+ DE0779_RT_08rev03\.pdf \+ RT-08-rev\.05\.pdf$`, useTest1Input)
 	ctx.Step(`^(?:che )?la cartella di input contiene "ACIAA A1 rilievi\.csv" con N righe \(NC, Osservazioni, Commenti\)$`, useTest2Input)
@@ -276,7 +276,7 @@ func eseguibileInstallato(c context.Context) (context.Context, error) {
 func profiliEsistono(c context.Context, a, b string) (context.Context, error) {
 	s := getState(c)
 	for _, name := range []string{a, b} {
-		body := minimalProfileYAML(name)
+		body := minimalProfileTOML(name)
 		if err := s.writeProfile(name, body); err != nil {
 			return c, err
 		}
@@ -290,16 +290,18 @@ func kbEsiste(c context.Context) (context.Context, error) {
 	return c, nil
 }
 
-func minimalProfileYAML(name string) string {
-	return fmt.Sprintf(`profilo: %s
-descrizione: profilo di test minimal per %s
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-trigger_prompt: |
-  Trigger prompt di lunghezza sufficiente per superare la soglia minima
-  di 50 caratteri richiesta dallo schema (FR-3). Tono ispettivo.
+// minimalProfileTOML genera uno stub di profilo TOML valido (Sprint 1.5.B FR-23).
+// Rinominato da minimalProfileTOML. Schema migrato a TOML, semantica invariata.
+func minimalProfileTOML(name string) string {
+	return fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test minimal per %s"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = """
+Trigger prompt di lunghezza sufficiente per superare la soglia minima
+di 50 caratteri richiesta dallo schema (FR-3). Tono ispettivo.
+"""
 `, name, name)
 }
 
@@ -459,8 +461,8 @@ func lancioCapabilityConSuccesso(c context.Context, profile string) (context.Con
 		s.startFakeOllama("Output di test prodotto da fake Ollama. RT-08 rev03 / RT-08 rev05 — bozza di revisione. [!MODIFICA] sezione 6.")
 	}
 	// installa il profile minimal se non presente
-	if _, err := os.Stat(filepath.Join(s.profiliDir, profile+".yml")); err != nil {
-		_ = s.writeProfile(profile, minimalProfileYAML(profile))
+	if _, err := os.Stat(filepath.Join(s.profiliDir, profile+".toml")); err != nil {
+		_ = s.writeProfile(profile, minimalProfileTOML(profile))
 	}
 	// Input dummy
 	in := s.ensureTmpDir("/tmp/run-input")
@@ -603,13 +605,12 @@ func stderrElencaProfili(c context.Context) (context.Context, error) {
 func creaProfiloValido(c context.Context, path string, triggerLen int) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo valido di test
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo valido di test"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, name, repeat("a", triggerLen))
 	return c, s.writeProfile(name, body)
 }
@@ -617,13 +618,12 @@ trigger_prompt: %s
 func creaProfiloTriggerLen(c context.Context, path string, triggerLen int) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo di test con trigger corto
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test con trigger corto"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, name, repeat("a", triggerLen))
 	return c, s.writeProfile(name, body)
 }
@@ -631,14 +631,12 @@ trigger_prompt: %s
 func creaProfiloConKbInesistente(c context.Context, path, missing string) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo di test kb mancante
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-  - %s
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test kb mancante"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md", "%s"]
+trigger_prompt = "%s"
 `, name, missing, repeat("a", 80))
 	return c, s.writeProfile(name, body)
 }
@@ -646,13 +644,12 @@ trigger_prompt: %s
 func creaProfiloConProvider(c context.Context, path, provider string) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo di test provider
-provider: %s
-modello: x
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test provider"
+provider = "%s"
+modello = "x"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, name, provider, repeat("a", 80))
 	return c, s.writeProfile(name, body)
 }
@@ -743,14 +740,12 @@ func creaCartellaAnnidata(c context.Context, dir, a, sub, b string) (context.Con
 func profiloDichiaraDueKb(c context.Context, path, a, b string) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo di test compose
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - %s
-  - %s
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test compose"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["%s", "%s"]
+trigger_prompt = "%s"
 `, name, a, b, repeat("a", 80))
 	// Crea i kb file se non esistono
 	for _, f := range []string{a, b} {
@@ -763,14 +758,12 @@ func profiloDichiaraKb(c context.Context, path, kbList string) (context.Context,
 	s := getState(c)
 	name := nameFromPath(path)
 	// kbList è già una stringa tipo `"CLAUDE.md", "come-pensa-un-ispettore.md"`
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo di test compose
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-  - come-pensa-un-ispettore.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test compose"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md", "come-pensa-un-ispettore.md"]
+trigger_prompt = "%s"
 `, name, repeat("a", 80))
 	_ = kbList // letterale ignorato — usiamo i 2 file standard
 	return c, s.writeProfile(name, body)
@@ -827,14 +820,13 @@ func stdoutUserPerFileBlock(c context.Context) (context.Context, error) {
 func profiloContextWindow(c context.Context, path string, ctxw int) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo con context_window custom
-provider: ollama
-modello: qwen3.6
-context_window: %d
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo con context_window custom"
+provider = "ollama"
+modello = "qwen3.6"
+context_window = %d
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, name, ctxw, repeat("a", 80))
 	return c, s.writeProfile(name, body)
 }
@@ -879,13 +871,12 @@ func profiloDichiaraProvider(c context.Context, path, provider string) (context.
 func profiloDichiaraProviderModello(c context.Context, path, provider, modello string) (context.Context, error) {
 	s := getState(c)
 	name := nameFromPath(path)
-	body := fmt.Sprintf(`profilo: %s
-descrizione: profilo di test provider+modello
-provider: %s
-modello: %s
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "%s"
+descrizione = "profilo di test provider+modello"
+provider = "%s"
+modello = "%s"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, name, provider, modello, repeat("a", 80))
 	return c, s.writeProfile(name, body)
 }
@@ -1195,7 +1186,7 @@ func fakeOllamaInterrotto(c context.Context) (context.Context, error) {
 	}))
 	// Già che ci siamo, lanciamo subito l'esecuzione (il scenario non ha un esplicito
 	// "Quando lancio labnexus run ..."; il pre-check tecnico aspetta che il file esista).
-	_ = s.writeProfile("revisione", minimalProfileYAML("revisione"))
+	_ = s.writeProfile("revisione", minimalProfileTOML("revisione"))
 	in := s.ensureTmpDir("/tmp/auto-input")
 	_ = os.WriteFile(filepath.Join(in, "dummy.md"), []byte("input"), 0o644)
 	return c, s.runBinary([]string{"run", "--profile", "revisione", "--input", in, "--output", s.outputDir})
@@ -1226,12 +1217,12 @@ func fmHasString(c context.Context, sub string) (context.Context, error) {
 
 func installRevisione(c context.Context) (context.Context, error) {
 	s := getState(c)
-	return c, s.writeProfile("revisione", minimalProfileYAML("revisione"))
+	return c, s.writeProfile("revisione", minimalProfileTOML("revisione"))
 }
 
 func installRilievi(c context.Context) (context.Context, error) {
 	s := getState(c)
-	return c, s.writeProfile("rilievi", minimalProfileYAML("rilievi"))
+	return c, s.writeProfile("rilievi", minimalProfileTOML("rilievi"))
 }
 
 func useTest1Input(c context.Context) (context.Context, error) {
@@ -1338,14 +1329,13 @@ func promptEccedeContext(c context.Context) (context.Context, error) {
 	s := getState(c)
 	d := s.ensureTmpDir("/tmp/input-troppo-grande")
 	_ = os.WriteFile(filepath.Join(d, "big.txt"), []byte(repeat("a", 1024*1024)), 0o644)
-	body := fmt.Sprintf(`profilo: ctx-piccolo
-descrizione: profilo con context piccolo
-provider: ollama
-modello: qwen3.6
-context_window: 1024
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "ctx-piccolo"
+descrizione = "profilo con context piccolo"
+provider = "ollama"
+modello = "qwen3.6"
+context_window = 1024
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, repeat("a", 80))
 	if err := s.writeProfile("ctx-piccolo", body); err != nil {
 		return c, err
@@ -1419,14 +1409,12 @@ func fileEsistenteIntatto(_ context.Context) error { return nil }
 
 func metaPromptYamlInventato(c context.Context, name string) (context.Context, error) {
 	s := getState(c)
-	body := fmt.Sprintf(`profilo: test-fantasma
-descrizione: profilo di test con kb inventato
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-  - %s
-trigger_prompt: %s
+	body := fmt.Sprintf(`profilo = "test-fantasma"
+descrizione = "profilo di test con kb inventato"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md", "%s"]
+trigger_prompt = "%s"
 `, name, repeat("a", 80))
 	if err := s.writeProfile("test-fantasma", body); err != nil {
 		return c, err
@@ -1487,14 +1475,14 @@ func min(a, b int) int {
 // La validazione qualitativa (L2 Denis) è fuori BDD per design (NFR-8).
 // ============================================================
 
-// installFromProject verifica che `profili/<name>.yml` esista nel repo,
+// installFromProject verifica che `profili/<name>.toml` esista nel repo,
 // eseguie `labnexus validate <name>` contro il profilo REALE e la KB reale
 // (gate Fetta 2 — chiude il finding HIGH "real profiles not validated by BDD"),
 // poi scrive uno stub minimal in s.profiliDir per il `run` e configura fake Ollama
 // col contenuto canned dato.
 func installFromProject(c context.Context, name, cannedBody string) (context.Context, error) {
 	s := getState(c)
-	projectProfile := filepath.Join(repoRoot, "profili", name+".yml")
+	projectProfile := filepath.Join(repoRoot, "profili", name+".toml")
 	if _, err := os.Stat(projectProfile); err != nil {
 		return c, fmt.Errorf("profilo di progetto non ancora implementato: %s mancante. Crearlo in /v-implement.", projectProfile)
 	}
@@ -1504,21 +1492,23 @@ func installFromProject(c context.Context, name, cannedBody string) (context.Con
 	if _, err := os.Stat(projectKbDir); err != nil {
 		return c, fmt.Errorf("KB-ispettore di progetto non trovata: %s", projectKbDir)
 	}
-	validateCmd := exec.Command(binaryPath, "validate", name, "--profiles-dir", projectProfiliDir, "--kb-dir", projectKbDir)
+	projectConfigPath := filepath.Join(repoRoot, "labnexus.config.toml")
+	validateCmd := exec.Command(binaryPath, "validate", name, "--profiles-dir", projectProfiliDir, "--kb-dir", projectKbDir, "--config", projectConfigPath)
 	if out, err := validateCmd.CombinedOutput(); err != nil {
 		return c, fmt.Errorf("labnexus validate %s ha fallito contro la KB reale: %v\n%s", name, err, string(out))
 	}
 	// Stub minimal in tmp profiles dir per il successivo `run` (KB tmp ha solo CLAUDE.md).
 	// Bug #006 fix: include `output.frontmatter_default` per esercitare il merge
 	// dell'engine (vedi internal/output/output.go::mergeFrontmatterDefaults).
-	yaml := minimalProfileYAML(name)
+	// Sprint 1.5.B: formato TOML.
+	toml := minimalProfileTOML(name)
 	if defaults, ok := profileExpectedDefaults[name]; ok {
-		yaml += "\noutput:\n  frontmatter_default:\n"
+		toml += "\n[output.frontmatter_default]\n"
 		for k, v := range defaults {
-			yaml += fmt.Sprintf("    %s: %q\n", k, v)
+			toml += fmt.Sprintf("%s = %q\n", k, v)
 		}
 	}
-	if err := s.writeProfile(name, yaml); err != nil {
+	if err := s.writeProfile(name, toml); err != nil {
 		return c, err
 	}
 	s.registerSpecialProfile(name)
@@ -2589,10 +2579,10 @@ func sprint15aFileSorgenteEseguibile(c context.Context, path string) (context.Co
 }
 
 // sprint15aTuttiProfiliDichiaranoRiga: verifica che TUTTI i 7 profili shippati
-// contengano la riga `riga` (stringa esatta da cercare in `profili/<name>.yml`).
+// contengano la riga `riga` (stringa esatta da cercare in `profili/<name>.toml`).
 func sprint15aTuttiProfiliDichiaranoRiga(c context.Context, riga string) (context.Context, error) {
 	for _, profilo := range sprint15aShippedProfiles {
-		path := filepath.Join("profili", profilo+".yml")
+		path := filepath.Join("profili", profilo+".toml")
 		content, err := sprint15aReadFile(path)
 		if err != nil {
 			return c, err
@@ -2609,7 +2599,7 @@ func sprint15aTuttiProfiliDichiaranoRiga(c context.Context, riga string) (contex
 // dichiarazioni obsolete (es. `provider: ollama` post-pivot-3).
 func sprint15aNessunProfiloDichiaraRiga(c context.Context, riga string) (context.Context, error) {
 	for _, profilo := range sprint15aShippedProfiles {
-		path := filepath.Join("profili", profilo+".yml")
+		path := filepath.Join("profili", profilo+".toml")
 		content, err := sprint15aReadFile(path)
 		if err != nil {
 			return c, err

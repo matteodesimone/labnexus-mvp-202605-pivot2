@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -138,4 +139,37 @@ func buildBar(pct, width int) string {
 	}
 	filled := pct * width / 100
 	return "[" + strings.Repeat("=", filled) + strings.Repeat(" ", width-filled) + "]"
+}
+
+// --- Sprint 1.5.C: audit trail multi-writer (FR-32, NFR-11) ---
+
+// NewMulti crea un Logger che scrive su N writers (es. stderr + log file accoppiato).
+// Pattern io.MultiWriter stdlib. Audit trail by-product: lo stesso flusso log
+// va in console (live) e in file (post-fatto, ISO 17025 compliance).
+func NewMulti(writers ...io.Writer) *Logger {
+	if len(writers) == 0 {
+		return New(nil)
+	}
+	if len(writers) == 1 {
+		return New(writers[0])
+	}
+	return New(io.MultiWriter(writers...))
+}
+
+// OpenLogFile crea il file di audit log accoppiato all'output MD (FR-32, NFR-11).
+// Pattern: nello stesso outputDir, con baseName matching il `.md`, estensione `.log`.
+// Caller chiude il *os.File. Crea outputDir se mancante.
+//
+// Sprint 1.5.C: il `.log` rappresenta l'audit trail ISO 17025 — ogni run produce
+// un MD (bozza per Denis) accoppiato a un LOG (trail tecnico per CTO/audit).
+func OpenLogFile(outputDir, baseName string) (*os.File, error) {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return nil, fmt.Errorf("runlog: mkdir %q: %w", outputDir, err)
+	}
+	path := filepath.Join(outputDir, baseName+".log")
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, fmt.Errorf("runlog: create %q: %w", path, err)
+	}
+	return f, nil
 }

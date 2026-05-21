@@ -14,7 +14,7 @@ Funzionalità: Profili A (revisione) e B (rilievi) — shakedown del motore in F
   # --- FR-13: Capability A — revisione (shakedown motore #1) ---
 
   Scenario: profilo revisione replica il Test 1 manuale
-    Dato che il profilo "revisione" è installato in ./profili/revisione.yml
+    Dato che il profilo "revisione" è installato in ./profili/revisione.toml
     E la cartella di input contiene PG_RISK_LAB_Rev_00.docx + DE0779_RT_08rev03.pdf + RT-08-rev.05.pdf
     Quando lancio "labnexus run --profile revisione --input <test1-input> --output <out>"
     Allora exit code è 0

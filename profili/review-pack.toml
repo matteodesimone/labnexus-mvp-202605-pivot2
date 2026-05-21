@@ -1,0 +1,30 @@
+# Profilo "review-pack" (Capability C) — Sprint 1.5.B (TOML).
+# Provider/modello/parametri ereditati dal master.
+
+profilo = "review-pack"
+descrizione = "Riesame annuale della Direzione — Management Review Pack a 13 sezioni con sintesi iniziale coerente con le decisioni finali"
+
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "MAPPA_ESPLOSA_REQUISITI_ISO17025.md",
+  "sezioni-ISO/sezione-8-sgq-domande.md",
+  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
+  "NC-patterns/errori-fatali-da-evitare.md",
+]
+
+trigger_prompt = """
+Sulla base della tua identità di system context, esegui questo compito.
+Input: pacchetto annuale di evidenze del laboratorio (NC, audit interni,
+reclami, PT con z-score, apparecchiature, KPI).
+Produci il Management Review Pack del CoWork KB sezione 15.4: markdown con
+esattamente 13 sezioni numerate "## 1." → "## 13." preceduto da una sezione
+"Sintesi iniziale" coerente con le decisioni finali del Pack (sezione 13).
+Tono ispettivo, riferimenti documentali espliciti, no requisiti normativi
+non presenti negli input. Frontmatter YAML completo.
+"""
+
+[output.frontmatter_default]
+tipo = "management_review_pack"
+stato_qm = "bozza_da_validare_qm"
+profilo_labnexus = "review-pack"

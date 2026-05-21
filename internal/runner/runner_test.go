@@ -55,7 +55,7 @@ func setupRunEnv(t *testing.T, profileBody string) runner.Config {
 	if err := os.WriteFile(filepath.Join(kb, "CLAUDE.md"), []byte("stub kb"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(profili, "test.yml"), []byte(profileBody), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(profili, "test.toml"), []byte(profileBody), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(in, "doc.md"), []byte("input content"), 0o644); err != nil {
@@ -71,13 +71,12 @@ func setupRunEnv(t *testing.T, profileBody string) runner.Config {
 }
 
 func defaultTestProfile() string {
-	return fmt.Sprintf(`profilo: test
-descrizione: profilo di test runner
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	return fmt.Sprintf(`profilo = "test"
+descrizione = "profilo di test runner"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, strings.Repeat("a", 80))
 }
 
@@ -120,14 +119,13 @@ func TestRun_ProfileNotFoundReturnsError(t *testing.T) {
 }
 
 func TestRun_ContextWindowExceededBlocks(t *testing.T) {
-	cfg := setupRunEnv(t, fmt.Sprintf(`profilo: test
-descrizione: ctx piccolo
-provider: ollama
-modello: qwen3.6
-context_window: 64
-kb_files:
-  - CLAUDE.md
-trigger_prompt: %s
+	cfg := setupRunEnv(t, fmt.Sprintf(`profilo = "test"
+descrizione = "ctx piccolo"
+provider = "ollama"
+modello = "qwen3.6"
+context_window = 64
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "%s"
 `, strings.Repeat("a", 80)))
 	// Riempi input.md con tantissimi caratteri → supera 64 token (256 chars)
 	bigInput := filepath.Join(cfg.InputDir, "big.txt")
@@ -143,13 +141,12 @@ trigger_prompt: %s
 }
 
 func TestRun_InvalidProfileRejectedByValidate(t *testing.T) {
-	cfg := setupRunEnv(t, `profilo: test
-descrizione: trigger corto
-provider: ollama
-modello: qwen3.6
-kb_files:
-  - CLAUDE.md
-trigger_prompt: corto
+	cfg := setupRunEnv(t, `profilo = "test"
+descrizione = "trigger corto"
+provider = "ollama"
+modello = "qwen3.6"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "corto"
 `)
 	_, err := runner.Run(cfg)
 	if err == nil {
@@ -165,3 +162,62 @@ trigger_prompt: corto
 // validano OllamaProvider e EurouterProvider end-to-end con httptest.NewServer).
 // L'integrazione completa runner+provider+writer è validata dagli scenari BDD
 // che invocano il binario come subprocess (vedi features/).
+
+// TestRun_MergeMasterAndValidatePostMerge (fix review 1.5.B HIGH-mistral-2):
+// verifica end-to-end che il config master fornisca i campi opzionali al profile
+// parziale, e che profile.Validate passi sul merged invece che sul profile isolato.
+func TestRun_MergeMasterAndValidatePostMerge(t *testing.T) {
+	cfg := setupRunEnv(t, `profilo = "test"
+descrizione = "profilo parziale (provider/modello ereditati dal master)"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "Trigger prompt sufficiente a superare la soglia minima di 50 caratteri richiesta dallo schema."
+`)
+	// Crea master config nella tmp dir (relativo cfg.ProfiliDir + ../)
+	masterPath := filepath.Join(filepath.Dir(cfg.ProfiliDir), "labnexus.config.toml")
+	masterBody := `provider = "ollama"
+modello = "qwen3.6"
+temperature = 0.9
+max_tokens = 8192
+context_window = 128000
+`
+	if err := os.WriteFile(masterPath, []byte(masterBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConfigPath = masterPath
+	cfg.DryRun = true
+
+	res, err := runner.Run(cfg)
+	if err != nil {
+		t.Fatalf("merge+validate dovrebbe passare con master che fornisce provider/modello: %v", err)
+	}
+	if res.ExitCode != 0 {
+		t.Errorf("exit code: want 0, got %d", res.ExitCode)
+	}
+}
+
+// TestRun_MergeMasterInvalidProviderFails (fix review 1.5.B HIGH-mistral-2 dual):
+// verifica che se il master fornisce un provider invalido e il profile non lo
+// override, il merged profile è respinto da Validate.
+func TestRun_MergeMasterInvalidProviderFails(t *testing.T) {
+	cfg := setupRunEnv(t, `profilo = "test"
+descrizione = "profilo parziale"
+kb_files = ["CLAUDE.md"]
+trigger_prompt = "Trigger prompt sufficiente a superare la soglia minima di 50 caratteri richiesta dallo schema."
+`)
+	masterPath := filepath.Join(filepath.Dir(cfg.ProfiliDir), "labnexus.config.toml")
+	if err := os.WriteFile(masterPath, []byte(`provider = "openai"
+modello = "gpt-4"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg.ConfigPath = masterPath
+	cfg.DryRun = true
+
+	_, err := runner.Run(cfg)
+	if err == nil {
+		t.Fatal("validate post-merge dovrebbe fallire per provider invalido nel master, got nil")
+	}
+	if !strings.Contains(err.Error(), "provider") {
+		t.Errorf("error dovrebbe menzionare 'provider', got: %v", err)
+	}
+}

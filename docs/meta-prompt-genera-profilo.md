@@ -1,6 +1,10 @@
 # Meta-prompt — Generazione di profili LabNexus
 
-> **Istruzioni d'uso**: incolla questo intero documento in una chat su `claude.ai` come **primo messaggio**. Poi, in un messaggio successivo, descrivi la capability per cui vuoi un profilo. Claude ti farà domande di chiarimento se necessario, poi produrrà lo YAML.
+> **Istruzioni d'uso**: incolla questo intero documento in una chat su `claude.ai` come **primo messaggio**. Poi, in un messaggio successivo, descrivi la capability per cui vuoi un profilo. Claude ti farà domande di chiarimento se necessario, poi produrrà il file di profilo.
+
+> **Sprint 1.5.B amendment (FR-22)**: il formato user-edited dei profili è migrato da YAML a **TOML** (Sprint 1.5.B, 2026-05-21). Gli esempi few-shot in basso (sezioni 4.1-4.3) sono storici Sprint 1 in YAML — quando produci un profilo nuovo, segui lo **schema TOML** della sezione 3. La semantica delle chiavi è identica; solo la sintassi cambia (`profilo: nome` → `profilo = "nome"`, liste YAML → array `["a", "b"]`, blocchi multi-line `|` → `"""..."""`). Inoltre Sprint 1.5.B ha aggiunto:
+> - **Campi opzionali** (`provider`, `modello`, `temperature`, `max_tokens`, `context_window`) — ereditati dal master `labnexus.config.toml` al root. Puoi ometterli nel profilo se accetti i defaults globali.
+> - **`trigger_prompt_file`** (alternativo a `trigger_prompt` inline, XOR): path relativo a `--input` di un file `.rtf`/`.txt`/`.md` che contiene il trigger. Utile se vuoi editare il prompt in un editor RTF (Word, Pages) anziché direttamente nel TOML.
 
 ---
 
@@ -32,60 +36,65 @@ La KB-ispettore (scritta da Denis Brazzo) vive in `./KB-ispettore/` ed è la **f
 
 ---
 
-## 3. Schema completo del profilo YAML
+## 3. Schema completo del profilo TOML (Sprint 1.5.B+)
 
-Il file `./profili/<nome>.yml` deve avere questa struttura:
+Il file `./profili/<nome>.toml` deve avere questa struttura:
 
-```yaml
-profilo: <nome-kebab-case>          # OBBLIGATORIO — stesso nome del file
-descrizione: <una riga descrittiva>  # OBBLIGATORIO
+```toml
+# OBBLIGATORI
+profilo     = "<nome-kebab-case>"          # stesso nome del file (senza .toml)
+descrizione = "<una riga descrittiva>"
 
-provider: ollama                     # OBBLIGATORIO — {ollama | eurouter}, default ollama
-modello: qwen3.6                     # OBBLIGATORIO — di solito qwen3.6 (vedi nota)
+# OPZIONALI (Sprint 1.5.B): se omessi, ereditati da labnexus.config.toml al root.
+# Override locale possibile (vince sul master se setted).
+provider       = "eurouter"                # {ollama | eurouter}, default master = eurouter
+modello        = "qwen3.6"                 # qwen3.6 di default
+temperature    = 0.9
+max_tokens     = 8192
+context_window = 128000
 
-# Parametri opzionali con default ragionevoli:
-temperature: 0.9
-max_tokens: 8192
-context_window: 128000
+# OBBLIGATORIO — almeno 1 file della KB-ispettore (path relativi a ./KB-ispettore/)
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "sezioni-ISO/sezione-N-...md",            # sotto-cartelle ammesse
+  "NC-patterns/...md",
+]
 
-kb_files:                            # OBBLIGATORIO — almeno 1 file della KB-ispettore
-  - CLAUDE.md                        #   path RELATIVI a ./KB-ispettore/
-  - come-pensa-un-ispettore.md
-  - sezioni-ISO/sezione-N-...md      #   sotto-cartelle ammesse
-  - NC-patterns/...md
+# TRIGGER — XOR: scegli UNO dei due (Sprint 1.5.B FR-16)
+#
+# Opzione A — inline TOML (≥ 50 caratteri, 5-10 righe consigliato):
+trigger_prompt = """
+Sulla base della tua identità di system context, esegui questo compito.
+Input: <descrizione concisa dei file di input attesi>.
+Produci <output type> secondo il template <riferimento> in N sezioni
+numerate/heading: (1) <nome>, (2) <nome>, ... (N) <nome>.
+Cita SOLO <riferimenti verificabili dagli input>. NON inventare <tipo>.
+Tono ispettivo, frontmatter YAML completo.
+"""
+#
+# Opzione B — file separato (`.rtf`/`.txt`/`.md`, path relativo a --input dir):
+# trigger_prompt_file = "Prompt_INPUT.rtf"
+#
+# NON specificare entrambe: il validator rifiuta XOR violation con errore esplicito.
 
-trigger_prompt: |                    # OBBLIGATORIO — ≥ 50 caratteri, 5-10 righe consigliato
-  Sulla base della tua identità di system context, esegui questo compito.
-  Input: <descrizione concisa dei file di input attesi>.
-  Produci <output type> secondo il template <riferimento> in N sezioni
-  numerate/heading: (1) <nome>, (2) <nome>, ... (N) <nome>.
-  Cita SOLO <riferimenti verificabili dagli input>. NON inventare <tipo>.
-  Tono ispettivo, frontmatter YAML completo.
-
-input:                               # OPZIONALE ma raccomandato
-  pattern_attesi:
-    - "<descrizione 1 dei file di input>"
-    - "<descrizione 2>"
-  istruzioni_se_mancante: |
-    Per <capability> servono <elenco>.
-
-output:                              # OPZIONALE ma raccomandato per tracciabilità
-  frontmatter_default:               #   chiavi che vengono mergeate nel frontmatter
-    tipo: <capability_type_snake_case>
-    stato_qm: bozza_da_validare_qm   #   workflow QM (NON sovrascrive il `stato` runtime engine)
-    profilo_labnexus: <nome>
-    locale: true                     #   declarazione esecuzione on-device
+# OPZIONALE — frontmatter default mergeato nell'output MD
+# (chiavi engine-generated vincono in caso di collisione)
+[output.frontmatter_default]
+tipo             = "<capability_type_snake_case>"
+stato_qm         = "bozza_da_validare_qm"  # NON sovrascrive il `stato` runtime engine
+profilo_labnexus = "<nome>"
 ```
 
-**Vincoli rigidi** (`labnexus validate` li applica):
+**Vincoli rigidi** (`labnexus validate` li applica sul profilo MERGED col master):
 
 - `profilo` non vuoto.
 - `descrizione` non vuoto.
-- `provider` ∈ `{ollama, eurouter}`.
-- `modello` non vuoto.
+- `provider` ∈ `{ollama, eurouter}` — verificato post-merge (può essere ereditato dal master).
+- `modello` non vuoto — verificato post-merge.
 - `kb_files` non vuoto e tutti i file devono ESISTERE in `./KB-ispettore/`.
-- `trigger_prompt` ≥ 50 caratteri.
-- Symlink fuori da `./KB-ispettore/` sono **rifiutati** (path traversal protection).
+- `trigger_prompt` ≥ 50 caratteri (se inline) — XOR con `trigger_prompt_file` (FR-16).
+- Path traversal protection: kb_files + `trigger_prompt_file` non possono uscire dalle rispettive root dir.
 
 ---
 
@@ -112,42 +121,44 @@ Quando proponi `kb_files`, scegli SOLO da questa lista. **NON inventare path**.
 
 ## 5. Esempi few-shot
 
-### Esempio A — `revisione` (Capability A, shakedown Sprint 1)
+### Esempio A — `revisione` (Capability A) — formato TOML Sprint 1.5.B idiomatico
 
-```yaml
-profilo: revisione
-descrizione: Revisione documentale in seguito a cambio di norma di riferimento
+Questo esempio è il **formato corrente** post-1.5.B: provider/modello/parametri OMESSI (ereditati dal master), trigger inline.
 
-provider: ollama
-modello: qwen3.6
-temperature: 0.9
-max_tokens: 8192
-context_window: 128000
+```toml
+profilo     = "revisione"
+descrizione = "Revisione documentale in seguito a cambio di norma di riferimento"
 
-kb_files:
-  - CLAUDE.md
-  - come-pensa-un-ispettore.md
-  - sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md
-  - sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md
-  - NC-patterns/come-rispondere-NC-ACCREDIA.md
-  - NC-patterns/errori-fatali-da-evitare.md
+# Provider/modello/parametri ereditati dal master labnexus.config.toml
+# (eurouter, qwen3.6, 0.9, 8192, 128000 di default Sprint 1.5+).
+# Override locale possibile aggiungendo le righe corrispondenti qui sotto.
 
-trigger_prompt: |
-  Sulla base della tua identità di system context, esegui questo compito.
-  Input: documento SGQ da revisionare + versione vecchia + versione nuova
-  della norma di riferimento.
-  Produci una bozza di revisione del documento allineata alla nuova norma,
-  con callout Obsidian [!MODIFICA] per ogni cambiamento normativo applicato.
-  Tono ispettivo, NON inventare requisiti normativi non presenti negli input.
-  Frontmatter YAML completo.
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md",
+  "sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md",
+  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
+  "NC-patterns/errori-fatali-da-evitare.md",
+]
 
-output:
-  frontmatter_default:
-    tipo: bozza_revisione
-    stato_qm: bozza_da_validare_qm
-    profilo_labnexus: revisione
-    locale: true
+trigger_prompt = """
+Sulla base della tua identità di system context, esegui questo compito.
+Input: documento SGQ da revisionare + versione vecchia + versione nuova
+della norma di riferimento.
+Produci una bozza di revisione del documento allineata alla nuova norma,
+con callout Obsidian [!MODIFICA] per ogni cambiamento normativo applicato.
+Tono ispettivo, NON inventare requisiti normativi non presenti negli input.
+Frontmatter YAML completo.
+"""
+
+[output.frontmatter_default]
+tipo             = "bozza_revisione"
+stato_qm         = "bozza_da_validare_qm"
+profilo_labnexus = "revisione"
 ```
+
+Gli esempi B-C qui sotto sono storici Sprint 1 in YAML — referenza per il pattern, MA usa la sintassi TOML idiomatica come l'esempio A quando produci un profilo nuovo. Niente `provider: ollama` esplicito (è obsoleto: il default master è eurouter).
 
 ### Esempio B — `rilievi` (Capability B, gestione NC ACCREDIA)
 
@@ -272,7 +283,7 @@ Atteso: `schema OK` con exit 0.
 - Tutto in italiano (commit message inclusi, se chiesto).
 - Identificatori in kebab-case per nomi profilo / file.
 - NESSUN secret nel profilo (no API key, no path personali).
-- NON suggerire `provider: eurouter` per dati reali di Denis (deve passare per gate cloud + approvazione esplicita; default ollama).
+- Sprint 1.5+ (post-pivot-3): il **default deliverable è `eurouter`** (cloud EU-GDPR, cliente formalmente approvato). I profili NORMALMENTE omettono il campo `provider` per ereditarlo dal master `labnexus.config.toml`. Aggiungi `provider = "ollama"` esplicito SOLO se la capability richiede on-device per ragioni specifiche (es. utente con hardware adeguato che vuole air-gapped).
 - Se l'utente descrive una capability che richiede pre-processing deterministico (es. calcoli numerici esatti, ricerche LIMS), spiega che Sprint 1 NON include orchestrazione deterministica — il profilo gira solo la parte LLM-critical.
 
 ---

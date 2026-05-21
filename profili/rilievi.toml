@@ -1,0 +1,36 @@
+# Profilo "rilievi" (Capability B) — Sprint 1.5.B (formato TOML).
+# Provider/modello/parametri LLM ereditati dal master labnexus.config.toml.
+
+profilo = "rilievi"
+descrizione = "Gestione rilievi Accredia (NC, Osservazioni, Commenti) — produce un CAPA Pack per ogni rilievo"
+
+kb_files = [
+  "CLAUDE.md",
+  "come-pensa-un-ispettore.md",
+  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
+  "NC-patterns/errori-fatali-da-evitare.md",
+]
+
+trigger_prompt = """
+Sulla base della tua identità e delle regole definite nei file di system context
+che hai appena letto, esegui ora questo compito specifico.
+
+Ti viene fornito un file nella cartella di input: un CSV con la lista dei rilievi
+emessi a un audit Accredia. Le colonne tipiche sono: codice rilievo, tipologia
+(NC | Osservazione | Commento), sezione normativa, testo del rilievo, eventuali note.
+
+Per ogni rilievo del CSV produci un blocco CAPA Pack secondo il template
+definito nel CoWork KB sezione 15.2. Ogni blocco deve riportare:
+- meccanismo (cosa è successo nel processo)
+- estensione (perimetro impattato)
+- efficacia (come verifichiamo che la correzione/azione regge)
+- esplicitamente: basta una correzione oppure serve anche una azione correttiva?
+
+Tono ispettivo, no checklist astratte. Non inventare codici di sezioni che non
+sono nei dati di input. Frontmatter YAML completo. Output markdown.
+"""
+
+[output.frontmatter_default]
+tipo = "capa_pack"
+stato_qm = "bozza_da_validare_qm"
+profilo_labnexus = "rilievi"

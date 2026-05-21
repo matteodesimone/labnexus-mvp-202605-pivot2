@@ -126,3 +126,41 @@ func TestLogger_StepsAreRecorded(t *testing.T) {
 		t.Errorf("expected step names [a,b], got %v", names)
 	}
 }
+
+// --- Sprint 1.5.C test-scaffold (red phase): test stub per audit trail ---
+
+// TestNewMulti_WritesToAllSinks (red phase): atteso che NewMulti scriva su tutti
+// i writer passati. Stub corrente usa solo il primo → test fail su secondo writer.
+func TestNewMulti_WritesToAllSinks(t *testing.T) {
+	var buf1, buf2 bytes.Buffer
+	l := runlog.NewMulti(&buf1, &buf2)
+	l.Info("test message")
+	if !strings.Contains(buf1.String(), "test message") {
+		t.Errorf("buf1 dovrebbe contenere 'test message', got %q", buf1.String())
+	}
+	if !strings.Contains(buf2.String(), "test message") {
+		t.Errorf("buf2 dovrebbe contenere 'test message' (multi-writer), got %q", buf2.String())
+	}
+}
+
+// TestOpenLogFile_CreatesFileWithExpectedName (red phase): stub ritorna error.
+func TestOpenLogFile_CreatesFileWithExpectedName(t *testing.T) {
+	dir := t.TempDir()
+	baseName := "2026-05-22T100000_revisione_Test1"
+	f, err := runlog.OpenLogFile(dir, baseName)
+	if err != nil {
+		t.Fatalf("OpenLogFile: unexpected error %v", err)
+	}
+	defer f.Close()
+	if f == nil {
+		t.Fatal("OpenLogFile ritorna *os.File nil")
+	}
+	// Verifica nome file
+	if !strings.HasSuffix(f.Name(), baseName+".log") {
+		t.Errorf("nome file atteso *.log, got %q", f.Name())
+	}
+	// Scrivi qualcosa e verifica
+	if _, err := f.WriteString("test log entry\n"); err != nil {
+		t.Fatalf("write log: %v", err)
+	}
+}

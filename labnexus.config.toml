@@ -1,0 +1,26 @@
+# labnexus.config.toml — Configurazione master Sprint 1.5.B (post-pivot-3).
+# Editato da Denis dopo aver estratto lo zip. Almeno `eurouter_api_key` va riempito.
+#
+# I 7 profili in profili/*.toml ereditano questi defaults se non specificano
+# il campo localmente. Override locale del profile prevale sul master.
+
+# Provider LLM di default. Cloud EU-GDPR via eurouter (Sprint 1.5 default
+# post-pivot-3, cliente Stefano Fiorina approvato). Override locale possibile
+# nel profile o via CLI/env (--provider, LABNEXUS_PROVIDER).
+provider = "eurouter"
+
+# Modello di default. Qwen 3 family, 36B MoE su eurouter.
+modello = "qwen3.6"
+
+# Parametri LLM di default.
+temperature = 0.9
+max_tokens = 8192
+context_window = 128000
+
+# Chiave API per eurouter. Denis la riempie qui dopo lo zip extract.
+# In alternativa, può essere passata come env var EUROUTER_API_KEY (precedenza env > master).
+eurouter_api_key = ""
+
+# Endpoint Ollama per chi usa il provider locale opzionale.
+# Default: http://localhost:11434 (override via env LABNEXUS_OLLAMA_ENDPOINT).
+ollama_endpoint = "http://localhost:11434"

@@ -2,7 +2,18 @@
 
 Eseguibile macOS / Linux nativo (Go) che esegue **una capability ispettiva alla volta** del modello AICertus. **Sprint 1.5 (default deliverable)**: chiama Qwen 3 via EUrouter (cloud EU-GDPR, gateway `api.eurouter.ai`). **Opzionale**: Qwen 3 locale via Ollama per chi dispone di hardware adeguato (override via flag `--provider ollama` o env `LABNEXUS_PROVIDER=ollama`).
 
-Sprint 1 (in corso): motore + 7 profili + prompt meta per generare nuovi profili in autonomia. Vedi `.pipeline/spec.md` e `.pipeline/plan.md`.
+Sprint 1.5.C (concierge mode): Denis lavora dalla cartella `lavori/` con auto-discovery via `_labnexus.toml` per ogni cartella di lavoro. Ogni esecuzione produce un output `.md` (bozza) + un `.log` accoppiato (audit trail ISO 17025).
+
+## Setup 3 passi (Denis)
+
+1. **Estrai** lo zip in una cartella sul tuo Mac (es. `~/labnexus/`).
+2. **Apri `labnexus.config.toml`** con un editor di testo e inserisci la tua chiave EUROUTER alla riga:
+   ```toml
+   eurouter_api_key = "sk-..."
+   ```
+3. **Doppio click su `labnexus.command`** (prima volta: control-clic → Apri → conferma per Gatekeeper). Si apre Terminal con la TUI.
+
+Per aggiungere nuovi lavori: duplica una cartella in `lavori/` e edita `_labnexus.toml` (1 riga: `profile = "<nome>"`). Oppure rinomina la cartella secondo la convenzione `... — Profilo <nome>` (auto-discovery via convention naming).
 
 ## Quick start
 

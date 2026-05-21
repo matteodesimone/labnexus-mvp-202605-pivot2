@@ -179,7 +179,7 @@ Stampa il prompt composto su stdout senza chiamare alcun modello. Utile per veri
 ## Aggiungere una nuova capability (profilo)
 
 Sprint 1: il prompt meta è una feature di Fetta 3. In manuale:
-1. Crea `profili/<nome>.yml` con schema FR-3 (vedi `internal/profile/profile.go`)
+1. Crea `profili/<nome>.toml` con schema FR-3 (Sprint 1.5.B+; era `.yml` in Sprint 1). Vedi `internal/profile/profile.go`.
 2. Verifica con `./labnexus validate <nome>`
 3. Esegui `./labnexus describe <nome>` per controllare i campi
 4. Dry-run con `./labnexus check <nome> --input <dir>`

@@ -17,8 +17,8 @@ import (
 	"github.com/ledongthuc/pdf"
 )
 
-// SupportedExt elenca le estensioni accettate (FR-4).
-var SupportedExt = []string{".md", ".txt", ".csv", ".pdf", ".docx", ".xlsx"}
+// SupportedExt elenca le estensioni accettate (FR-4 + Sprint 1.5.B FR-21).
+var SupportedExt = []string{".md", ".txt", ".csv", ".pdf", ".docx", ".xlsx", ".xls", ".doc", ".rtf"}
 
 // ParsedFile rappresenta un file di input dopo estrazione testo.
 type ParsedFile struct {
@@ -110,6 +110,55 @@ func isSupported(ext string) bool {
 	return false
 }
 
+// ParseTriggerPromptFile carica il file referenziato da `trigger_prompt_file`
+// e ne ritorna il plain text (FR-17). Il path è relativo a inputDir e protetto
+// contro escape (NFR-6 amendment): il file resolto via EvalSymlinks deve
+// restare dentro inputDir. Formati supportati: .md, .txt, .rtf.
+func ParseTriggerPromptFile(inputDir, relPath string) (string, error) {
+	if relPath == "" {
+		return "", fmt.Errorf("input: trigger_prompt_file vuoto")
+	}
+	absInput, err := filepath.Abs(inputDir)
+	if err != nil {
+		return "", fmt.Errorf("input: inputDir %q non risolvibile: %w", inputDir, err)
+	}
+	realInput, err := filepath.EvalSymlinks(absInput)
+	if err != nil {
+		realInput = absInput
+	}
+	full := filepath.Join(absInput, relPath)
+	absFull, err := filepath.Abs(full)
+	if err != nil {
+		return "", fmt.Errorf("input: trigger_prompt_file %q non risolvibile: %w", relPath, err)
+	}
+	if !strings.HasPrefix(absFull, absInput+string(os.PathSeparator)) && absFull != absInput {
+		return "", fmt.Errorf("input: trigger_prompt_file %q path non consentito (esce dalla cartella di input)", relPath)
+	}
+	if _, err := os.Stat(absFull); err != nil {
+		return "", fmt.Errorf("input: trigger_prompt_file %q non esiste in inputDir", relPath)
+	}
+	realFull, err := filepath.EvalSymlinks(absFull)
+	if err != nil {
+		return "", fmt.Errorf("input: trigger_prompt_file %q symlink non risolvibile: %w", relPath, err)
+	}
+	if !strings.HasPrefix(realFull, realInput+string(os.PathSeparator)) && realFull != realInput {
+		return "", fmt.Errorf("input: trigger_prompt_file %q path non consentito (symlink esce dalla cartella di input)", relPath)
+	}
+	ext := strings.ToLower(filepath.Ext(absFull))
+	switch ext {
+	case ".md", ".txt":
+		data, err := os.ReadFile(absFull)
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	case ".rtf":
+		return parseRtf(absFull)
+	default:
+		return "", fmt.Errorf("input: trigger_prompt_file %q estensione non supportata %q (consentite: .md, .txt, .rtf)", relPath, ext)
+	}
+}
+
 func extract(path, ext string) (string, error) {
 	switch ext {
 	case ".md", ".txt", ".csv":
@@ -124,6 +173,12 @@ func extract(path, ext string) (string, error) {
 		return extractZipXML(path, "word/document.xml")
 	case ".xlsx":
 		return extractXLSX(path)
+	case ".xls":
+		return parseXls(path)
+	case ".doc":
+		return parseDoc(path)
+	case ".rtf":
+		return parseRtf(path)
 	}
 	return "", fmt.Errorf("estensione %s non gestita", ext)
 }

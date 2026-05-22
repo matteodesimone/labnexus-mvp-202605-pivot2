@@ -59,22 +59,104 @@ func TestParseDir_OnlyUnsupportedReturnsError(t *testing.T) {
 	}
 }
 
-func TestParseDir_NonRecursiveSkipsSubdirs(t *testing.T) {
+// TestParseDir_RecursiveIncludesSubdirs (post-Sprint 1.5 fix): il walk è
+// ricorsivo. Le sottocartelle vengono attraversate e i file inclusi nel risultato
+// con Name = path relativo alla input dir (POSIX), così il prompt preserva il
+// significato semantico della struttura cartelle scelta dall'utente.
+func TestParseDir_RecursiveIncludesSubdirs(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "top.md", "top level")
 	sub := filepath.Join(dir, "sub")
-	_ = os.MkdirAll(sub, 0o755)
-	writeFile(t, sub, "deep.md", "should be skipped")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+	writeFile(t, sub, "deep.md", "deep content")
+
+	res, err := input.ParseDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res.Files) != 2 {
+		t.Fatalf("expected 2 files (walk ricorsivo), got %d: %+v", len(res.Files), res.Files)
+	}
+	names := []string{res.Files[0].Name, res.Files[1].Name}
+	expected := []string{"sub/deep.md", "top.md"}
+	for i, want := range expected {
+		if names[i] != want {
+			t.Errorf("Files[%d].Name = %q, want %q (ordine alfabetico, path POSIX)", i, names[i], want)
+		}
+	}
+}
+
+// TestParseDir_NestedSubdirs verifica depth > 1 e ordine alfabetico path-based.
+func TestParseDir_NestedSubdirs(t *testing.T) {
+	dir := t.TempDir()
+	nested := filepath.Join(dir, "a", "b", "c")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+	writeFile(t, nested, "deep.md", "very deep")
+	writeFile(t, dir, "root.md", "root")
+
+	res, err := input.ParseDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res.Files) != 2 {
+		t.Fatalf("expected 2 files, got %d: %+v", len(res.Files), res.Files)
+	}
+	if res.Files[0].Name != "a/b/c/deep.md" {
+		t.Errorf("Files[0].Name = %q, want %q", res.Files[0].Name, "a/b/c/deep.md")
+	}
+	if res.Files[1].Name != "root.md" {
+		t.Errorf("Files[1].Name = %q, want %q", res.Files[1].Name, "root.md")
+	}
+}
+
+// TestParseDir_OutputSubdirSkipped: la cartella `output/` (dove il tool stesso
+// scrive i risultati) viene esclusa dal walk per evitare loop di feedback
+// (il risultato di un run precedente non deve entrare come input del prossimo).
+func TestParseDir_OutputSubdirSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "input.md", "real input")
+	outDir := filepath.Join(dir, "output")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatalf("mkdir output: %v", err)
+	}
+	writeFile(t, outDir, "previous-run.md", "questo NON deve essere letto")
 
 	res, err := input.ParseDir(dir)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(res.Files) != 1 {
-		t.Fatalf("expected 1 file (walk non-ricorsivo), got %d", len(res.Files))
+		t.Fatalf("expected 1 file (output/ skipped), got %d: %+v", len(res.Files), res.Files)
 	}
-	if res.Files[0].Name != "top.md" {
-		t.Errorf("expected top.md, got %q", res.Files[0].Name)
+	if res.Files[0].Name != "input.md" {
+		t.Errorf("expected input.md, got %q", res.Files[0].Name)
+	}
+}
+
+// TestParseDir_DotDirsSkipped: cartelle con prefisso `.` (convenzione unix per
+// directory di sistema/nascoste, es. `.git`) vengono saltate.
+func TestParseDir_DotDirsSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "real.md", "real content")
+	gitDir := filepath.Join(dir, ".git")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatalf("mkdir .git: %v", err)
+	}
+	writeFile(t, gitDir, "config.md", "git internal — NON leggere")
+
+	res, err := input.ParseDir(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("expected 1 file (.git/ skipped), got %d: %+v", len(res.Files), res.Files)
+	}
+	if res.Files[0].Name != "real.md" {
+		t.Errorf("expected real.md, got %q", res.Files[0].Name)
 	}
 }
 

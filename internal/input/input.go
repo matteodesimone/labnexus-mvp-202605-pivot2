@@ -1,5 +1,11 @@
 // Package input estrae testo plain dai file della cartella di input dell'utente.
-// Walk non ricorsivo (FR-4). Formati supportati: md, txt, csv, pdf, docx, xlsx.
+// Walk ricorsivo: le sottocartelle vengono attraversate e i loro file inclusi.
+// Il Name del ParsedFile è il path relativo alla input dir in formato POSIX
+// (es. "Documento_da_revisionare/MQL_Rev03.docx"), così il prompt preserva il
+// significato semantico della struttura cartelle scelta dall'utente.
+// Vengono saltati: la cartella `output/` (dove il tool scrive i risultati,
+// per evitare feedback loop) e le cartelle con prefisso `.` (convenzione unix).
+// Formati supportati: md, txt, csv, pdf, docx, xlsx, xls, doc, rtf.
 // Su parser fallito → skip con warning (EC-1, EC-2). Su ≥ 50% fallimenti → errore.
 package input
 
@@ -40,9 +46,11 @@ type SkippedFile struct {
 	Reason string
 }
 
-// ParseDir esegue il walk non ricorsivo di dir, estrae testo per ogni file supportato.
+// ParseDir esegue il walk ricorsivo di dir, estrae testo per ogni file supportato.
+// I file ritornati hanno Name = path relativo a dir in formato POSIX. La cartella
+// `output/` e le cartelle con prefisso `.` vengono saltate (vedi labnexusInternalDirs).
 func ParseDir(dir string) (*ParsedResult, error) {
-	names, err := listFilesDeterministic(dir)
+	names, err := walkFilesDeterministic(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +70,6 @@ func ParseDir(dir string) (*ParsedResult, error) {
 	return res, nil
 }
 
-// listFilesDeterministic ritorna i nomi file (non dir) ordinati alfabeticamente.
 // labnexusInternalFiles sono file infrastrutturali della cartella di lavoro
 // (Sprint 1.5.C concierge mode) che NON vanno parsati come input domain-specific.
 // Skip silenzioso: niente warning "formato non supportato".
@@ -72,20 +79,56 @@ var labnexusInternalFiles = map[string]bool{
 	".DS_Store":       true, // macOS metadata
 }
 
-func listFilesDeterministic(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("input: lettura cartella %q: %w", dir, err)
+// labnexusInternalDirs sono cartelle che NON vanno attraversate dal walk:
+// `output` contiene i risultati di run precedenti — entrarci genererebbe
+// feedback loop. Le cartelle che iniziano con `.` (es. `.git`) sono saltate
+// indipendentemente da questa mappa (vedi shouldSkipDir).
+var labnexusInternalDirs = map[string]bool{
+	"output": true,
+}
+
+// shouldSkipDir decide se una directory va saltata dal walk.
+// Salta cartelle interne note e cartelle nascoste (prefisso `.`).
+func shouldSkipDir(name string) bool {
+	if labnexusInternalDirs[name] {
+		return true
 	}
-	names := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() {
-			continue // walk non ricorsivo
+	if strings.HasPrefix(name, ".") {
+		return true
+	}
+	return false
+}
+
+// walkFilesDeterministic attraversa ricorsivamente dir e ritorna i path relativi
+// (POSIX, separatore `/`) ordinati alfabeticamente. Salta le sottocartelle
+// indicate da shouldSkipDir e i file in labnexusInternalFiles.
+func walkFilesDeterministic(root string) ([]string, error) {
+	var names []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if labnexusInternalFiles[e.Name()] {
-			continue // skip file infrastrutturali Sprint 1.5.C
+		if d.IsDir() {
+			if path == root {
+				return nil
+			}
+			if shouldSkipDir(d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
 		}
-		names = append(names, e.Name())
+		if labnexusInternalFiles[d.Name()] {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return fmt.Errorf("input: rel path %q: %w", path, err)
+		}
+		names = append(names, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("input: walk cartella %q: %w", root, err)
 	}
 	sort.Strings(names)
 	return names, nil

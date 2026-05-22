@@ -22,15 +22,23 @@ type Master struct {
 	Temperature    float64   `toml:"temperature"`
 	MaxTokens      int       `toml:"max_tokens"`
 	ContextWindow  int       `toml:"context_window"`
-	EurouterAPIKey string    `toml:"eurouter_api_key"`
-	OllamaEndpoint string    `toml:"ollama_endpoint"`
-	PDF            PDFConfig `toml:"pdf"`
+	EurouterAPIKey string     `toml:"eurouter_api_key"`
+	OllamaEndpoint string     `toml:"ollama_endpoint"`
+	PDF            PDFConfig  `toml:"pdf"`
+	Docx           DocxConfig `toml:"docx"`
 }
 
 // PDFConfig controlla la generazione del PDF accoppiato all'output MD.
 // Enabled è *bool per distinguere "non setted" (nil) da "esplicitamente false".
 // Vedi ResolvePDFEnabled per la gerarchia di risoluzione.
 type PDFConfig struct {
+	Enabled *bool `toml:"enabled"`
+}
+
+// DocxConfig controlla la generazione del DOCX accoppiato all'output MD.
+// Stessa semantica di PDFConfig: *bool per distinguere non-setted da false
+// esplicito. Vedi ResolveDocxEnabled per la gerarchia.
+type DocxConfig struct {
 	Enabled *bool `toml:"enabled"`
 }
 

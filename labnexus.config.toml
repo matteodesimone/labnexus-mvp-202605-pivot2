@@ -40,3 +40,9 @@ ollama_endpoint = "http://localhost:11434"
 # massimo: flag CLI --pdf / --pdf=false (per-run).
 [pdf]
 enabled = true
+
+# Sprint 1.5.D: generazione DOCX accoppiato all'output MD per L2 validation
+# Denis con Word (track changes, comments). Stessa gerarchia di [pdf]:
+# master qui → _labnexus.toml [docx] enabled per-capability → flag --docx CLI.
+[docx]
+enabled = true

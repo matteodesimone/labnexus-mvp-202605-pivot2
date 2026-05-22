@@ -1,9 +1,12 @@
 package pdf_test
 
 import (
+	"archive/zip"
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -155,6 +158,113 @@ func TestRender_TableRendered(t *testing.T) {
 	for _, want := range []string{"Sezione", "Modifica", "Impatto", "Media", "Alta"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("table cell %q assente, text: %q", want, text)
+		}
+	}
+}
+
+// renderDocxOrSkip esegue pdf.RenderDocx e skippa se pandoc non disponibile.
+func renderDocxOrSkip(t *testing.T, md []byte, meta pdf.Metadata) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	err := pdf.RenderDocx(md, meta, pdf.DefaultBrand(), &buf)
+	if err != nil {
+		if err == pdf.ErrPandocMissing || strings.Contains(err.Error(), "pandoc") {
+			t.Skipf("pandoc non disponibile: %v (esegui make pdf-tools)", err)
+		}
+		t.Fatalf("RenderDocx: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// readDocxText estrae il testo plain dal .docx unendo body + header + footer.
+// Necessario perché il branding LabNexus + capability vive in word/header1.xml,
+// la paginazione in word/footer1.xml, e il body content in word/document.xml.
+func readDocxText(t *testing.T, data []byte) string {
+	t.Helper()
+	tmp := filepath.Join(t.TempDir(), "out.docx")
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		t.Fatalf("write tempfile: %v", err)
+	}
+	zr, err := zip.OpenReader(tmp)
+	if err != nil {
+		t.Fatalf("zip open: %v", err)
+	}
+	defer zr.Close()
+	var sb strings.Builder
+	for _, f := range zr.File {
+		switch f.Name {
+		case "word/document.xml", "word/header1.xml", "word/footer1.xml":
+		default:
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatalf("open %s: %v", f.Name, err)
+		}
+		body, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatalf("read %s: %v", f.Name, err)
+		}
+		s := tagRe.ReplaceAllString(string(body), " ")
+		sb.WriteString(s)
+		sb.WriteString(" ")
+	}
+	return wsRe.ReplaceAllString(sb.String(), " ")
+}
+
+var (
+	tagRe = regexp.MustCompile(`<[^>]+>`)
+	wsRe  = regexp.MustCompile(`\s+`)
+)
+
+func TestRenderDocx_ProducesValidDOCX(t *testing.T) {
+	out := renderDocxOrSkip(t, []byte("# Test\n\nCorpo.\n"), sampleMeta())
+	// DOCX = zip → magic bytes "PK"
+	if len(out) < 2 || string(out[:2]) != "PK" {
+		t.Fatalf("output non è uno zip/docx valido, primi bytes: %q", out[:min(4, len(out))])
+	}
+}
+
+func TestRenderDocx_HeaderContainsBrand(t *testing.T) {
+	out := renderDocxOrSkip(t, []byte("# Test\n\nCorpo.\n"), sampleMeta())
+	text := readDocxText(t, out)
+	if !strings.Contains(text, "LabNexus") {
+		t.Errorf("DOCX dovrebbe contenere brand 'LabNexus' (prependDocxHeader), text: %q", text[:min(500, len(text))])
+	}
+}
+
+func TestRenderDocx_MetadataBoxContainsFrontmatter(t *testing.T) {
+	out := renderDocxOrSkip(t, []byte("# Test\n\nCorpo.\n"), sampleMeta())
+	text := readDocxText(t, out)
+	for _, want := range []string{"revisione", "qwen3.5-122b-a10b", "eurouter", "Revisione SGQ"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("metadata %q assente nel DOCX, text: %q", want, text[:min(800, len(text))])
+		}
+	}
+}
+
+func TestRenderDocx_CalloutRenderedWithPrefix(t *testing.T) {
+	md := []byte("# Test\n\n> [!ATTENZIONE] Scadenza ACCREDIA\n> Entro il 2026-09-30.\n")
+	out := renderDocxOrSkip(t, md, sampleMeta())
+	text := readDocxText(t, out)
+	if !strings.Contains(text, "[ATTENZIONE]") {
+		t.Errorf("callout prefix '[ATTENZIONE]' assente, text: %q", text)
+	}
+	if !strings.Contains(text, "Scadenza ACCREDIA") {
+		t.Errorf("callout title 'Scadenza ACCREDIA' assente, text: %q", text)
+	}
+	if !strings.Contains(text, "2026-09-30") {
+		t.Errorf("callout body assente, text: %q", text)
+	}
+}
+
+func TestRenderDocx_ItalianAccentsPreserved(t *testing.T) {
+	out := renderDocxOrSkip(t, []byte("# Test\n\nLa città è già perché può.\n"), sampleMeta())
+	text := readDocxText(t, out)
+	for _, want := range []string{"città", "perché", "può"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("accento %q assente nel DOCX, text: %q", want, text)
 		}
 	}
 }

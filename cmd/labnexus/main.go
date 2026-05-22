@@ -235,6 +235,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().String("output", "", "cartella di output — opzionale se --job (default: <input>/output/)")
 	cmd.Flags().String("job", "", "nome del job auto-discovered in lavori/ (FR-29; alternativa XOR a --profile/--input/--output)")
 	cmd.Flags().Bool("pdf", false, "genera anche il PDF accoppiato all'output MD. Override massimo della gerarchia: CLI > _labnexus.toml [pdf] > labnexus.config.toml [pdf] > off (default). Usa --pdf=false per disattivare esplicitamente quando il master ha pdf on.")
+	cmd.Flags().Bool("docx", false, "genera anche il DOCX accoppiato all'output MD (Word-editable per L2 validation Denis). Gerarchia identica a --pdf: CLI > _labnexus.toml [docx] > labnexus.config.toml [docx] > off.")
 	return cmd
 }
 
@@ -274,11 +275,17 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 		v, _ := cmd.Flags().GetBool("pdf")
 		pdfCLI = &v
 	}
-	var pdfJob *bool
+	var pdfJob, docxJob *bool
 	if jobName != "" {
 		if j, err := resolveJobOrError(cmd, jobName); err == nil {
 			pdfJob = j.PDFEnabled
+			docxJob = j.DocxEnabled
 		}
+	}
+	var docxCLI *bool
+	if cmd.Flags().Changed("docx") {
+		v, _ := cmd.Flags().GetBool("docx")
+		docxCLI = &v
 	}
 	res, err := runner.Run(runner.Config{
 		ProfileName:      profileName,
@@ -290,6 +297,8 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 		ConfigPath:       resolveConfigPath(cmd),
 		PDFEnabledCLI:    pdfCLI,
 		PDFEnabledJob:    pdfJob,
+		DocxEnabledCLI:   docxCLI,
+		DocxEnabledJob:   docxJob,
 		Capability:       jobName,
 	})
 	if err != nil {

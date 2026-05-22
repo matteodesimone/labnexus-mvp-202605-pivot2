@@ -22,3 +22,11 @@ func ResolvePDFEnabled(cli, job, master *bool) bool {
 	}
 	return false
 }
+
+// ResolveDocxEnabled implementa la stessa gerarchia di ResolvePDFEnabled per
+// la generazione DOCX accoppiata all'MD. CLI > job > master > false.
+// Alias semantico — la logica è identica, separata per chiarezza di chiamata
+// nei consumer (runner) che mantengono nomi di parametri distinti.
+func ResolveDocxEnabled(cli, job, master *bool) bool {
+	return ResolvePDFEnabled(cli, job, master)
+}

@@ -62,30 +62,47 @@ function BlockQuote(blockquote)
     table.insert(body_blocks, blockquote.content[i])
   end
 
-  -- Converti title in typst markup (inline-only, no \n)
-  local title_typst = ""
+  -- Output dispatch: typst usa #callout(...) come raw block (template definisce
+  -- la funzione); docx riscrive come BlockQuote con header "[KIND] title" bold
+  -- in run separati (no styling custom — perde il box visuale del PDF, ma
+  -- preserva semantica e leggibilità con prefix testuale).
+  if FORMAT == "typst" then
+    -- Converti title/body in typst markup
+    local title_typst = ""
+    if #title_inlines > 0 then
+      local title_doc = pandoc.Pandoc({pandoc.Plain(title_inlines)}, pandoc.Meta({}))
+      title_typst = pandoc.write(title_doc, "typst")
+      title_typst = title_typst:gsub("\n+$", ""):gsub("\n", " ")
+    end
+    local body_typst = ""
+    if #body_blocks > 0 then
+      local body_doc = pandoc.Pandoc(body_blocks, pandoc.Meta({}))
+      body_typst = pandoc.write(body_doc, "typst")
+      body_typst = body_typst:gsub("\n+$", "")
+    end
+    local raw
+    if title_typst ~= "" and body_typst ~= "" then
+      raw = string.format('#callout(kind: "%s", title: [%s])[\n%s\n]', kind, title_typst, body_typst)
+    elseif title_typst ~= "" then
+      raw = string.format('#callout(kind: "%s", title: [%s])[]', kind, title_typst)
+    else
+      raw = string.format('#callout(kind: "%s")[\n%s\n]', kind, body_typst)
+    end
+    return pandoc.RawBlock("typst", raw)
+  end
+
+  -- Default branch (es. docx): ricostruisci BlockQuote con header bold
+  -- "[KIND] title" + body blocks. Pandoc DOCX writer rende come Quote style
+  -- (bordo sinistro indented), e il prefix testuale "[KIND]" preserva la
+  -- "tipizzazione" del callout anche senza box visuale custom.
+  local header_inlines = {pandoc.Strong({pandoc.Str("[" .. kind .. "]")})}
   if #title_inlines > 0 then
-    local title_doc = pandoc.Pandoc({pandoc.Plain(title_inlines)}, pandoc.Meta({}))
-    title_typst = pandoc.write(title_doc, "typst")
-    title_typst = title_typst:gsub("\n+$", ""):gsub("\n", " ")
+    table.insert(header_inlines, pandoc.Space())
+    table.insert(header_inlines, pandoc.Strong(title_inlines))
   end
-
-  -- Converti body in typst markup (può contenere block elements)
-  local body_typst = ""
-  if #body_blocks > 0 then
-    local body_doc = pandoc.Pandoc(body_blocks, pandoc.Meta({}))
-    body_typst = pandoc.write(body_doc, "typst")
-    body_typst = body_typst:gsub("\n+$", "")
+  local new_blocks = {pandoc.Para(header_inlines)}
+  for _, b in ipairs(body_blocks) do
+    table.insert(new_blocks, b)
   end
-
-  -- Costruisci il raw block typst
-  local raw
-  if title_typst ~= "" and body_typst ~= "" then
-    raw = string.format('#callout(kind: "%s", title: [%s])[\n%s\n]', kind, title_typst, body_typst)
-  elseif title_typst ~= "" then
-    raw = string.format('#callout(kind: "%s", title: [%s])[]', kind, title_typst)
-  else
-    raw = string.format('#callout(kind: "%s")[\n%s\n]', kind, body_typst)
-  end
-  return pandoc.RawBlock("typst", raw)
+  return pandoc.BlockQuote(new_blocks)
 end

@@ -41,6 +41,10 @@ type Config struct {
 	// PDFEnabledJob: override esplicito per-capability da _labnexus.toml [pdf].
 	// nil = non setted (eredita dal master). Risoluzione: cli > job > master > false.
 	PDFEnabledJob *bool
+	// DocxEnabledCLI / DocxEnabledJob: stessa semantica di PDFEnabled per la
+	// generazione DOCX accoppiata all'MD (Sprint 1.5.D extension).
+	DocxEnabledCLI *bool
+	DocxEnabledJob *bool
 	// Capability: display name mostrato nell'header del PDF (es. "CAPABILITY A — Profilo revisione").
 	// Tipicamente il nome del job. Vuoto = fallback al nome del profilo.
 	Capability string
@@ -335,6 +339,14 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	pdfEnabled := config.ResolvePDFEnabled(cfg.PDFEnabledCLI, cfg.PDFEnabledJob, masterPDF)
 	if pdfPath := maybeWritePDF(outPath, body, fm, pdfEnabled, cfg.Capability, multiLog); pdfPath != "" {
 		multiLog.Info("pdf accoppiato: %s", pdfPath)
+	}
+	var masterDocx *bool
+	if master != nil {
+		masterDocx = master.Docx.Enabled
+	}
+	docxEnabled := config.ResolveDocxEnabled(cfg.DocxEnabledCLI, cfg.DocxEnabledJob, masterDocx)
+	if docxPath := maybeWriteDocx(outPath, body, fm, docxEnabled, cfg.Capability, multiLog); docxPath != "" {
+		multiLog.Info("docx accoppiato: %s", docxPath)
 	}
 	return &Result{
 		OutputPath:  outPath,

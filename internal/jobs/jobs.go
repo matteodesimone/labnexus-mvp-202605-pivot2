@@ -29,6 +29,8 @@ type Job struct {
 	// PDFEnabled override per-capability del default master [pdf].
 	// nil = non setted (eredita da master); risolto via config.ResolvePDFEnabled.
 	PDFEnabled *bool
+	// DocxEnabled override per-capability del default master [docx].
+	DocxEnabled *bool
 }
 
 // ValidateProfileExists controlla che ogni job referenzi un profile esistente
@@ -53,14 +55,20 @@ var conventionRegex = regexp.MustCompile(`Profilo\s+(.+?)\s*$`)
 
 // metadataDoc è la rappresentazione TOML del file `_labnexus.toml`.
 type metadataDoc struct {
-	Profile           string         `toml:"profile"`
-	TriggerPromptFile string         `toml:"trigger_prompt_file"`
-	PDF               metadataPDFDoc `toml:"pdf"`
+	Profile           string          `toml:"profile"`
+	TriggerPromptFile string          `toml:"trigger_prompt_file"`
+	PDF               metadataPDFDoc  `toml:"pdf"`
+	Docx              metadataDocxDoc `toml:"docx"`
 }
 
 // metadataPDFDoc è la sezione [pdf] opzionale dentro _labnexus.toml.
 // Enabled è *bool per distinguere "non setted" (nil) da "esplicitamente false".
 type metadataPDFDoc struct {
+	Enabled *bool `toml:"enabled"`
+}
+
+// metadataDocxDoc è la sezione [docx] opzionale dentro _labnexus.toml.
+type metadataDocxDoc struct {
 	Enabled *bool `toml:"enabled"`
 }
 
@@ -73,6 +81,9 @@ type Metadata struct {
 	// PDFEnabled override per-capability del default [pdf] master.
 	// nil = non setted; risolto via config.ResolvePDFEnabled.
 	PDFEnabled *bool
+	// DocxEnabled override per-capability del default [docx] master.
+	// nil = non setted; risolto via config.ResolveDocxEnabled.
+	DocxEnabled *bool
 }
 
 // Discover scansiona `lavoriDir`, legge `_labnexus.toml` per ogni sotto-cartella,
@@ -122,6 +133,7 @@ func resolveJob(lavoriDir, folderName, realLavoriDir string) *Job {
 		}
 		j := newJob(folderName, jobPath, m.Profile, m.TriggerPromptFile, "metadata")
 		j.PDFEnabled = m.PDFEnabled
+		j.DocxEnabled = m.DocxEnabled
 		return j
 	}
 	// Fallback convention naming
@@ -208,5 +220,6 @@ func LoadMetadata(path string) (*Metadata, error) {
 		Profile:           doc.Profile,
 		TriggerPromptFile: doc.TriggerPromptFile,
 		PDFEnabled:        doc.PDF.Enabled,
+		DocxEnabled:       doc.Docx.Enabled,
 	}, nil
 }

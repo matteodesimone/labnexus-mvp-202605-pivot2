@@ -49,3 +49,40 @@ func maybeWritePDF(mdPath, body string, fm *output.Frontmatter, pdfEnabled bool,
 	}
 	return pdfPath
 }
+
+// maybeWriteDocx genera il DOCX accoppiato all'MD (analogo a maybeWritePDF).
+// Pattern non-bloccante: warning su errore, .md sempre disponibile.
+// Path derivato da mdPath sostituendo .md → .docx.
+func maybeWriteDocx(mdPath, body string, fm *output.Frontmatter, docxEnabled bool, capability string, log *runlog.Logger) string {
+	if !docxEnabled {
+		return ""
+	}
+	docxPath := strings.TrimSuffix(mdPath, ".md") + ".docx"
+	meta := pdf.Metadata{
+		Profilo:        fm.Profilo,
+		Modello:        fm.Modello,
+		Provider:       fm.Provider,
+		DataEsecuzione: fm.DataEsecuzione,
+		DurataSecondi:  fm.DurataSecondi,
+		TokenStimati:   fm.TokenStimati,
+		FileInput:      fm.FileInput,
+		Stato:          fm.Stato,
+		Capability:     capability,
+	}
+	f, err := os.Create(docxPath)
+	if err != nil {
+		log.Warn("DOCX: impossibile creare file %q: %v — DOCX disabilitato per questo run, .md disponibile", docxPath, err)
+		return ""
+	}
+	if err := pdf.RenderDocx([]byte(body), meta, pdf.DefaultBrand(), f); err != nil {
+		f.Close()
+		_ = os.Remove(docxPath)
+		log.Warn("DOCX: render fallito (%v) — DOCX disabilitato per questo run, .md disponibile", err)
+		return ""
+	}
+	if err := f.Close(); err != nil {
+		log.Warn("DOCX: chiusura file %q fallita: %v", docxPath, err)
+		return ""
+	}
+	return docxPath
+}

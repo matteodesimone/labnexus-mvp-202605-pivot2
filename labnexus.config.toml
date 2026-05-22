@@ -33,3 +33,10 @@ eurouter_api_key = ""
 # Endpoint Ollama per chi usa il provider locale opzionale.
 # Default: http://localhost:11434 (override via env LABNEXUS_OLLAMA_ENDPOINT).
 ollama_endpoint = "http://localhost:11434"
+
+# Sprint 1.5.D: generazione PDF accoppiato all'output MD.
+# Default attivo per tutte le 7 capability. Override per-capability nel
+# _labnexus.toml della cartella (sezione [pdf] enabled = false). Override
+# massimo: flag CLI --pdf / --pdf=false (per-run).
+[pdf]
+enabled = true

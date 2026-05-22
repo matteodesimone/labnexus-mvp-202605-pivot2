@@ -158,20 +158,20 @@ trigger_prompt_file = "Prompt_INPUT.rtf"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
-	profile, triggerFile, err := jobs.LoadMetadata(path)
+	m, err := jobs.LoadMetadata(path)
 	if err != nil {
 		t.Fatalf("LoadMetadata: unexpected error %v", err)
 	}
-	if profile != "revisione" {
-		t.Errorf("profile: got %q, want revisione", profile)
+	if m.Profile != "revisione" {
+		t.Errorf("Profile: got %q, want revisione", m.Profile)
 	}
-	if triggerFile != "Prompt_INPUT.rtf" {
-		t.Errorf("triggerFile: got %q, want Prompt_INPUT.rtf", triggerFile)
+	if m.TriggerPromptFile != "Prompt_INPUT.rtf" {
+		t.Errorf("TriggerPromptFile: got %q, want Prompt_INPUT.rtf", m.TriggerPromptFile)
 	}
 }
 
 func TestLoadMetadata_FileMissing(t *testing.T) {
-	_, _, err := jobs.LoadMetadata("/nonexistent/_labnexus.toml")
+	_, err := jobs.LoadMetadata("/nonexistent/_labnexus.toml")
 	if err == nil {
 		t.Fatal("LoadMetadata su file mancante: atteso error, got nil")
 	}
@@ -180,19 +180,72 @@ func TestLoadMetadata_FileMissing(t *testing.T) {
 func TestLoadMetadata_OnlyProfile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "_labnexus.toml")
-	// Solo profile, trigger_prompt_file omesso (opzionale).
 	if err := os.WriteFile(path, []byte(`profile = "rilievi"`), 0o644); err != nil {
 		t.Fatalf("setup: %v", err)
 	}
-	profile, triggerFile, err := jobs.LoadMetadata(path)
+	m, err := jobs.LoadMetadata(path)
 	if err != nil {
 		t.Fatalf("LoadMetadata: unexpected error %v", err)
 	}
-	if profile != "rilievi" {
-		t.Errorf("profile: got %q, want rilievi", profile)
+	if m.Profile != "rilievi" {
+		t.Errorf("Profile: got %q, want rilievi", m.Profile)
 	}
-	if triggerFile != "" {
-		t.Errorf("triggerFile dovrebbe essere vuoto (opzionale), got %q", triggerFile)
+	if m.TriggerPromptFile != "" {
+		t.Errorf("TriggerPromptFile dovrebbe essere vuoto (opzionale), got %q", m.TriggerPromptFile)
+	}
+	if m.PDFEnabled != nil {
+		t.Errorf("PDFEnabled dovrebbe essere nil quando [pdf] omesso, got %v", *m.PDFEnabled)
+	}
+}
+
+// TestLoadMetadata_PDFEnabledTrue: il `_labnexus.toml` può contenere una sezione
+// [pdf] con `enabled = true|false` per override per-capability del default
+// globale (vedi labnexus.config.toml [pdf]).
+func TestLoadMetadata_PDFEnabledTrue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "_labnexus.toml")
+	body := `profile = "revisione"
+
+[pdf]
+enabled = true
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	m, err := jobs.LoadMetadata(path)
+	if err != nil {
+		t.Fatalf("LoadMetadata: unexpected error %v", err)
+	}
+	if m.PDFEnabled == nil {
+		t.Fatal("PDFEnabled = nil, want pointer to true (override per-capability)")
+	}
+	if *m.PDFEnabled != true {
+		t.Errorf("PDFEnabled = %v, want true", *m.PDFEnabled)
+	}
+}
+
+// TestLoadMetadata_PDFEnabledFalseExplicit: una capability può disattivare
+// esplicitamente il PDF (override su master che dice on).
+func TestLoadMetadata_PDFEnabledFalseExplicit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "_labnexus.toml")
+	body := `profile = "revisione"
+
+[pdf]
+enabled = false
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	m, err := jobs.LoadMetadata(path)
+	if err != nil {
+		t.Fatalf("LoadMetadata: unexpected error %v", err)
+	}
+	if m.PDFEnabled == nil {
+		t.Fatal("PDFEnabled = nil, want pointer to false (override esplicito)")
+	}
+	if *m.PDFEnabled != false {
+		t.Errorf("PDFEnabled = %v, want false", *m.PDFEnabled)
 	}
 }
 

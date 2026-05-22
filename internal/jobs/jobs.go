@@ -26,6 +26,9 @@ type Job struct {
 	OutputDir         string // = Path + "/output" (default)
 	Source            string // "metadata" | "convention" — come è stato risolto
 	Warning           string // se non vuoto, semantic-level warning (es. profile inesistente in profili/)
+	// PDFEnabled override per-capability del default master [pdf].
+	// nil = non setted (eredita da master); risolto via config.ResolvePDFEnabled.
+	PDFEnabled *bool
 }
 
 // ValidateProfileExists controlla che ogni job referenzi un profile esistente
@@ -50,8 +53,26 @@ var conventionRegex = regexp.MustCompile(`Profilo\s+(.+?)\s*$`)
 
 // metadataDoc è la rappresentazione TOML del file `_labnexus.toml`.
 type metadataDoc struct {
-	Profile           string `toml:"profile"`
-	TriggerPromptFile string `toml:"trigger_prompt_file"`
+	Profile           string         `toml:"profile"`
+	TriggerPromptFile string         `toml:"trigger_prompt_file"`
+	PDF               metadataPDFDoc `toml:"pdf"`
+}
+
+// metadataPDFDoc è la sezione [pdf] opzionale dentro _labnexus.toml.
+// Enabled è *bool per distinguere "non setted" (nil) da "esplicitamente false".
+type metadataPDFDoc struct {
+	Enabled *bool `toml:"enabled"`
+}
+
+// Metadata è il contenuto parsato di un `_labnexus.toml`, ritornato da
+// LoadMetadata. Estensione progressiva: aggiungi campi qui invece di
+// allargare la signature di LoadMetadata.
+type Metadata struct {
+	Profile           string
+	TriggerPromptFile string
+	// PDFEnabled override per-capability del default [pdf] master.
+	// nil = non setted; risolto via config.ResolvePDFEnabled.
+	PDFEnabled *bool
 }
 
 // Discover scansiona `lavoriDir`, legge `_labnexus.toml` per ogni sotto-cartella,
@@ -95,11 +116,13 @@ func resolveJob(lavoriDir, folderName, realLavoriDir string) *Job {
 	}
 	metaPath := filepath.Join(jobPath, metadataFileName)
 	if _, err := os.Stat(metaPath); err == nil {
-		profile, triggerFile, err := LoadMetadata(metaPath)
+		m, err := LoadMetadata(metaPath)
 		if err != nil {
 			return nil // metadata malformato → skip
 		}
-		return newJob(folderName, jobPath, profile, triggerFile, "metadata")
+		j := newJob(folderName, jobPath, m.Profile, m.TriggerPromptFile, "metadata")
+		j.PDFEnabled = m.PDFEnabled
+		return j
 	}
 	// Fallback convention naming
 	matches := conventionRegex.FindStringSubmatch(folderName)
@@ -154,33 +177,36 @@ func Resolve(jobs []*Job, name string) *Job {
 	return nil
 }
 
-// LoadMetadata legge un singolo `_labnexus.toml` e ritorna
-// (profile, triggerPromptFile, error). Errore se il file non esiste o
-// il TOML è malformato.
+// LoadMetadata legge un singolo `_labnexus.toml` e ritorna *Metadata.
+// Errore se il file non esiste o il TOML è malformato.
 //
 // Fix review 1.5.C CRITICAL-mistral-1: defense-in-depth lexical validation
 // di TriggerPromptFile contro path traversal. Pattern coerente con
 // profile.validateTrigger (Sprint 1.5.B). Runtime check resta in
 // input.ParseTriggerPromptFile come second-line.
-func LoadMetadata(path string) (string, string, error) {
+func LoadMetadata(path string) (*Metadata, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return "", "", fmt.Errorf("jobs: read metadata %q: %w", path, err)
+		return nil, fmt.Errorf("jobs: read metadata %q: %w", path, err)
 	}
-	var m metadataDoc
-	if err := toml.Unmarshal(data, &m); err != nil {
-		return "", "", fmt.Errorf("jobs: parse metadata %q: %w", path, err)
+	var doc metadataDoc
+	if err := toml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("jobs: parse metadata %q: %w", path, err)
 	}
-	if strings.TrimSpace(m.Profile) == "" {
-		return "", "", fmt.Errorf("jobs: metadata %q manca campo 'profile'", path)
+	if strings.TrimSpace(doc.Profile) == "" {
+		return nil, fmt.Errorf("jobs: metadata %q manca campo 'profile'", path)
 	}
-	if m.TriggerPromptFile != "" {
-		if strings.Contains(m.TriggerPromptFile, "..") {
-			return "", "", fmt.Errorf("jobs: metadata %q ha trigger_prompt_file %q non consentito (contiene '..')", path, m.TriggerPromptFile)
+	if doc.TriggerPromptFile != "" {
+		if strings.Contains(doc.TriggerPromptFile, "..") {
+			return nil, fmt.Errorf("jobs: metadata %q ha trigger_prompt_file %q non consentito (contiene '..')", path, doc.TriggerPromptFile)
 		}
-		if filepath.IsAbs(m.TriggerPromptFile) {
-			return "", "", fmt.Errorf("jobs: metadata %q ha trigger_prompt_file %q non consentito (path assoluto)", path, m.TriggerPromptFile)
+		if filepath.IsAbs(doc.TriggerPromptFile) {
+			return nil, fmt.Errorf("jobs: metadata %q ha trigger_prompt_file %q non consentito (path assoluto)", path, doc.TriggerPromptFile)
 		}
 	}
-	return m.Profile, m.TriggerPromptFile, nil
+	return &Metadata{
+		Profile:           doc.Profile,
+		TriggerPromptFile: doc.TriggerPromptFile,
+		PDFEnabled:        doc.PDF.Enabled,
+	}, nil
 }

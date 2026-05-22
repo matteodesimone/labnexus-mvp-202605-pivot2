@@ -17,13 +17,21 @@ import (
 // I campi sono opzionali (zero-value detection a runtime); valori non setted
 // non vengono propagati al merge.
 type Master struct {
-	Provider       string  `toml:"provider"`
-	Modello        string  `toml:"modello"`
-	Temperature    float64 `toml:"temperature"`
-	MaxTokens      int     `toml:"max_tokens"`
-	ContextWindow  int     `toml:"context_window"`
-	EurouterAPIKey string  `toml:"eurouter_api_key"`
-	OllamaEndpoint string  `toml:"ollama_endpoint"`
+	Provider       string    `toml:"provider"`
+	Modello        string    `toml:"modello"`
+	Temperature    float64   `toml:"temperature"`
+	MaxTokens      int       `toml:"max_tokens"`
+	ContextWindow  int       `toml:"context_window"`
+	EurouterAPIKey string    `toml:"eurouter_api_key"`
+	OllamaEndpoint string    `toml:"ollama_endpoint"`
+	PDF            PDFConfig `toml:"pdf"`
+}
+
+// PDFConfig controlla la generazione del PDF accoppiato all'output MD.
+// Enabled è *bool per distinguere "non setted" (nil) da "esplicitamente false".
+// Vedi ResolvePDFEnabled per la gerarchia di risoluzione.
+type PDFConfig struct {
+	Enabled *bool `toml:"enabled"`
 }
 
 // Load legge il file TOML master e ritorna un *Master. Errori:

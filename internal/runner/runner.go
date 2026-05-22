@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -35,6 +36,14 @@ type Config struct {
 	ConfigPath       string // Sprint 1.5.B: path al labnexus.config.toml master (opzionale)
 	DryRun           bool
 	ShowPrompt       bool
+	// PDFEnabledCLI: override esplicito CLI (--pdf / --pdf=false). nil = non setted.
+	PDFEnabledCLI *bool
+	// PDFEnabledJob: override esplicito per-capability da _labnexus.toml [pdf].
+	// nil = non setted (eredita dal master). Risoluzione: cli > job > master > false.
+	PDFEnabledJob *bool
+	// Capability: display name mostrato nell'header del PDF (es. "CAPABILITY A — Profilo revisione").
+	// Tipicamente il nome del job. Vuoto = fallback al nome del profilo.
+	Capability string
 }
 
 // Result è l'esito dell'esecuzione.
@@ -52,7 +61,7 @@ func Run(cfg Config) (*Result, error) {
 	}
 	log := runlog.New(os.Stderr)
 
-	p, err := loadAndValidateProfile(cfg, log)
+	p, master, err := loadAndValidateProfile(cfg, log)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +88,7 @@ func Run(cfg Config) (*Result, error) {
 		log.Info("dry-run: nessuna chiamata LLM eseguita (%d token stimati)", check.Tokens)
 		return &Result{ExitCode: 0, TokensUsed: check.Tokens}, nil
 	}
-	return streamAndWriteOutput(cfg, p, composed, check, parsed, log)
+	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, log)
 }
 
 // validateConfig riempie i default e verifica i campi obbligatori.
@@ -100,23 +109,23 @@ func validateConfig(cfg *Config) error {
 // il profilo, fa merge master→profile, propaga EurouterAPIKey + OllamaEndpoint
 // del master a env vars (fallback se non già setted), valida il merged
 // (Sprint 1.5.B).
-func loadAndValidateProfile(cfg Config, log *runlog.Logger) (*profile.Profile, error) {
+func loadAndValidateProfile(cfg Config, log *runlog.Logger) (*profile.Profile, *config.Master, error) {
 	log.BeginStep("caricamento profilo")
 	defer log.EndStep()
 	master := loadMasterOptional(cfg.ConfigPath, log)
 	applyMasterToEnv(master)
 	p, err := loadProfile(cfg.ProfiliDir, cfg.ProfileName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	merged := config.Merge(master, p)
 	if err := profile.Validate(merged, cfg.KbDir); err != nil {
-		return nil, fmt.Errorf("runner: validate profilo: %w", err)
+		return nil, nil, fmt.Errorf("runner: validate profilo: %w", err)
 	}
 	// Sprint 1.5.C verbose: log effettivo provider/modello post-merge.
 	log.Info("profilo %q: provider=%s modello=%s temperature=%.2f max_tokens=%d context_window=%d",
 		merged.Profilo, merged.Provider, merged.Modello, merged.Temperature, merged.MaxTokens, merged.ContextWindow)
-	return merged, nil
+	return merged, master, nil
 }
 
 // applyMasterToEnv propaga EurouterAPIKey + OllamaEndpoint del master a env
@@ -286,7 +295,7 @@ func isStdoutTTY() bool {
 // io.MultiWriter per scrivere il logger contemporaneamente su stderr + log file.
 // Body streaming live (FR-35): i token chunks vanno raw su stderr (TTY) +
 // sempre al log file.
-func streamAndWriteOutput(cfg Config, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, log *runlog.Logger) (*Result, error) {
+func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, log *runlog.Logger) (*Result, error) {
 	prov, err := provider.Select(cfg.ProviderOverride, os.Getenv("LABNEXUS_PROVIDER"), p.Provider)
 	if err != nil {
 		return nil, err
@@ -306,10 +315,26 @@ func streamAndWriteOutput(cfg Config, p *profile.Profile, composed *prompt.Compo
 	if err != nil {
 		return nil, err
 	}
+	// Sanitizzazione: alcuni modelli (es. Qwen3.5-122B sul profilo revisione
+	// 2026-05-22T11:17) racchiudono l'intero output in ```yaml ... ``` rendendo
+	// il MD irreso come code block. Rimuoviamo il fence wrapping se rilevato.
+	if cleaned := stripFenceWrapping(body); cleaned != body {
+		multiLog.Info("body sanitization: rimosso fence wrapping spurio (modello aveva racchiuso l'output in code block)")
+		body = cleaned
+	}
 	logRelPath := baseName + ".log"
-	outPath, err := writeOutput(cfg, p, prov, parsed, check, body, stato, duration, started, multiLog, logRelPath)
+	outPath, fm, err := writeOutput(cfg, p, prov, parsed, check, body, stato, duration, started, multiLog, logRelPath)
 	if err != nil {
 		return nil, err
+	}
+	// PDF accoppiato (Sprint 1.5.D): gerarchia CLI > job > master > false.
+	var masterPDF *bool
+	if master != nil {
+		masterPDF = master.PDF.Enabled
+	}
+	pdfEnabled := config.ResolvePDFEnabled(cfg.PDFEnabledCLI, cfg.PDFEnabledJob, masterPDF)
+	if pdfPath := maybeWritePDF(outPath, body, fm, pdfEnabled, cfg.Capability, multiLog); pdfPath != "" {
+		multiLog.Info("pdf accoppiato: %s", pdfPath)
 	}
 	return &Result{
 		OutputPath:  outPath,
@@ -342,11 +367,15 @@ func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profil
 
 // outputBaseName ritorna il base name del file output (senza estensione).
 // Pattern Sprint 1: <timestamp>_<profile>_<input_descriptor>.
+// Post walk ricorsivo: ParsedFile.Name può essere un path relativo
+// (es. "Documento_da_revisionare/MQL_Rev03.docx") — usiamo path.Base per
+// estrarre solo il filename, così il `.log` accoppiato (runlog.OpenLogFile)
+// scrive direttamente in outputDir invece di tentare una subdir inesistente.
 func outputBaseName(p *profile.Profile, parsed *input.ParsedResult, started time.Time) string {
 	ts := started.Format("2006-01-02T150405")
 	descriptor := ""
 	if len(parsed.Files) > 0 {
-		first := parsed.Files[0].Name
+		first := path.Base(parsed.Files[0].Name)
 		if idx := strings.LastIndex(first, "."); idx > 0 {
 			first = first[:idx]
 		}
@@ -401,7 +430,7 @@ func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Compo
 	return body, stato, nil
 }
 
-func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, parsed *input.ParsedResult, check *tokens.CheckResult, body, stato string, duration time.Duration, started time.Time, log *runlog.Logger, logRelPath string) (string, error) {
+func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, parsed *input.ParsedResult, check *tokens.CheckResult, body, stato string, duration time.Duration, started time.Time, log *runlog.Logger, logRelPath string) (string, *output.Frontmatter, error) {
 	log.BeginStep("scrittura output")
 	defer log.EndStep()
 	fileNames := make([]string, len(parsed.Files))
@@ -422,10 +451,10 @@ func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, pars
 	}
 	outPath, err := output.Write(cfg.OutputDir, fm, body)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	log.Info("output: %s", outPath)
-	return outPath, nil
+	return outPath, fm, nil
 }
 
 func exitCodeFor(stato string) int {

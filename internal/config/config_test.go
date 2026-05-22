@@ -101,3 +101,49 @@ func TestMerge_MasterNilProfileInvariato(t *testing.T) {
 		t.Errorf("master nil: profile invariato, got %q", merged.Provider)
 	}
 }
+
+// TestLoad_PDFSectionEnabledTrue: il master TOML può contenere `[pdf]` con
+// `enabled = true|false` come default globale per tutte le capability.
+func TestLoad_PDFSectionEnabledTrue(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "labnexus.config.toml")
+	body := `provider = "eurouter"
+
+[pdf]
+enabled = true
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	m, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: unexpected error %v", err)
+	}
+	if m.PDF.Enabled == nil {
+		t.Fatal("PDF.Enabled = nil, want pointer to true (default globale on)")
+	}
+	if *m.PDF.Enabled != true {
+		t.Errorf("PDF.Enabled = %v, want true", *m.PDF.Enabled)
+	}
+}
+
+// TestLoad_PDFSectionAbsent_EnabledNil: senza sezione [pdf] nel master,
+// PDF.Enabled deve essere nil (non setted), così la risoluzione gerarchica
+// può distinguere "non setted" da "esplicitamente false".
+func TestLoad_PDFSectionAbsent_EnabledNil(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "labnexus.config.toml")
+	body := `provider = "eurouter"
+modello = "qwen3.5-122b-a10b"
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	m, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("Load: unexpected error %v", err)
+	}
+	if m.PDF.Enabled != nil {
+		t.Errorf("PDF.Enabled dovrebbe essere nil quando [pdf] omesso, got %v", *m.PDF.Enabled)
+	}
+}

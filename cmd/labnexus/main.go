@@ -234,6 +234,7 @@ func newRunCmd() *cobra.Command {
 	cmd.Flags().String("input", "", "cartella di input — obbligatoria se --job non setted")
 	cmd.Flags().String("output", "", "cartella di output — opzionale se --job (default: <input>/output/)")
 	cmd.Flags().String("job", "", "nome del job auto-discovered in lavori/ (FR-29; alternativa XOR a --profile/--input/--output)")
+	cmd.Flags().Bool("pdf", false, "genera anche il PDF accoppiato all'output MD. Override massimo della gerarchia: CLI > _labnexus.toml [pdf] > labnexus.config.toml [pdf] > off (default). Usa --pdf=false per disattivare esplicitamente quando il master ha pdf on.")
 	return cmd
 }
 
@@ -265,6 +266,20 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 	if err := preCheckAPIKeyByName(cmd, profileName, profiliDir); err != nil {
 		return err
 	}
+	// Tristate detection del flag --pdf: solo se l'utente l'ha esplicitamente
+	// passato consideriamo il valore (override CLI); altrimenti nil = "non setted"
+	// e la risoluzione cade su job-level → master-level → default(false).
+	var pdfCLI *bool
+	if cmd.Flags().Changed("pdf") {
+		v, _ := cmd.Flags().GetBool("pdf")
+		pdfCLI = &v
+	}
+	var pdfJob *bool
+	if jobName != "" {
+		if j, err := resolveJobOrError(cmd, jobName); err == nil {
+			pdfJob = j.PDFEnabled
+		}
+	}
 	res, err := runner.Run(runner.Config{
 		ProfileName:      profileName,
 		InputDir:         in,
@@ -273,6 +288,9 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 		ProfiliDir:       profiliDir,
 		KbDir:            kbDir,
 		ConfigPath:       resolveConfigPath(cmd),
+		PDFEnabledCLI:    pdfCLI,
+		PDFEnabledJob:    pdfJob,
+		Capability:       jobName,
 	})
 	if err != nil {
 		return newExit(classifyError(err), "%v", err)

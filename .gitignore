@@ -87,3 +87,7 @@ labnexus-smoke
 labnexus-final
 # Sprint 1.5.C: binary buildato al root per smoke test locali (go build -o ./labnexus ./cmd/labnexus)
 /labnexus
+
+# Sprint 1.5.D: cache locale dei download pandoc+typst (idempotency dello script).
+# Solo l'output binario in dist/ è interessante; la cache .zip/.tar non va in repo.
+/.cache/

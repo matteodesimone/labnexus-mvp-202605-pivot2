@@ -60,6 +60,10 @@ build-linux: ## Cross-compile Linux amd64 → dist/labnexus-linux-amd64
 .PHONY: build-all
 build-all: build-mac build-linux ## Build per entrambi i target Sprint 1 (darwin/arm64 + linux/amd64)
 
+.PHONY: pdf-tools
+pdf-tools: ## Scarica pandoc + typst (arm64 native) in dist/.../bin/ per rendering PDF (Sprint 1.5.D)
+	bash scripts/download-pdf-tools.sh
+
 # ─── Test ────────────────────────────────────────────────────────────────────
 
 .PHONY: test
@@ -123,7 +127,7 @@ package: build-mac ## Costruisce binary darwin/arm64 + zip di consegna (dist/lab
 	bash scripts/build-zip.sh
 
 .PHONY: ship
-ship: clean test vet package ## Pipeline completa di consegna: clean → test → vet → build-mac → zip
+ship: clean pdf-tools test vet package ## Pipeline completa di consegna: clean → pdf-tools → test → vet → build-mac → zip
 	@echo ""
 	@echo "✓ Pacchetto di consegna pronto:"
 	@ls -lh $(DIST_DIR)/$(ZIP_NAME)

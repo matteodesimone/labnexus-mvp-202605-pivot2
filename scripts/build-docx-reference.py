@@ -274,13 +274,25 @@ else:
 doc_path.write_text(doc)
 
 # ============================================================
-# 6. Re-zip
+# 6. Re-zip — deterministico
 # ============================================================
+# Rigenerazioni successive devono produrre il MEDESIMO byte-stream così il
+# git diff binario è zero quando il content semantico è identico. Otteniamo
+# determinismo via:
+#   - ordering alfabetico dei file (sorted)
+#   - timestamp fisso 1980-01-01 (epoch zip minimum)
+#   - external_attr fisso (0o644 << 16)
+EPOCH = (1980, 1, 1, 0, 0, 0)
 if OUT.exists():
     OUT.unlink()
 with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as zf:
-    for p in WORK.rglob("*"):
-        if p.is_file():
-            zf.write(p, p.relative_to(WORK))
+    files = sorted(p for p in WORK.rglob("*") if p.is_file())
+    for p in files:
+        info = zipfile.ZipInfo(str(p.relative_to(WORK)))
+        info.date_time = EPOCH
+        info.compress_type = zipfile.ZIP_DEFLATED
+        info.external_attr = 0o644 << 16
+        with p.open("rb") as fh:
+            zf.writestr(info, fh.read())
 
 print(f"OK reference.docx scritto in {OUT} ({OUT.stat().st_size} bytes)")

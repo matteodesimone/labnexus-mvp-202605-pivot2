@@ -104,6 +104,16 @@ func buildEurouterRequest(system, user string, opts Options) sseRequest {
 	}
 }
 
+// httpClientOrDefault ritorna il client HTTP per le chiamate streaming.
+// Pattern post-bugfix-5 (analogo a ollama, vedi OllamaDefaultHTTPClient):
+//   - Transport.ResponseHeaderTimeout = p.Timeout (TTFB only) — protegge
+//     contro server hung che non emette mai gli headers
+//   - Client.Timeout = 0 — NESSUN limite overall sul body streaming
+//
+// Modelli grossi su eurouter (qwen3.5-122b in thinking mode su KB grandi)
+// possono streammare il body per minuti a 5-10 tok/s; un Client.Timeout
+// overall tronca il body e il run fallisce con "context deadline exceeded"
+// (smoke 2026-05-22 10:51 ha mostrato il taglio a 1m47s con 935 token).
 func (p *EurouterProvider) httpClientOrDefault() *http.Client {
 	if p.HTTPClient != nil {
 		return p.HTTPClient
@@ -112,7 +122,9 @@ func (p *EurouterProvider) httpClientOrDefault() *http.Client {
 	if timeout <= 0 {
 		timeout = 120 * time.Second
 	}
-	return &http.Client{Timeout: timeout}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = timeout
+	return &http.Client{Transport: transport} // Timeout: 0 (no overall, body unlimited)
 }
 
 // consumeEurouterStream legge SSE OpenAI-compatible (data: {...}, terminatore [DONE]).

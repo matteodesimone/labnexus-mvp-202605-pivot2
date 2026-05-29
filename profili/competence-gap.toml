@@ -4,12 +4,31 @@
 profilo = "competence-gap"
 descrizione = "Competence Gap Report — gap competenze tecnici per procedura/metodo nuovo, con piano formazione e autorizzazioni da rilasciare/aggiornare"
 
+# Sprint 1.5.E — rimappato sul KB-ispettore v2.1 (refactor flat → cartelle numerate).
+# Mappatura "ampio": core di sistema + mappa + § 6 Risorse completo (ex monolite sezione-6).
 kb_files = [
-  "CLAUDE.md",
-  "come-pensa-un-ispettore.md",
-  "MAPPA_ESPLOSA_REQUISITI_ISO17025.md",
-  "sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md",
-  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
+  # Core "sempre in contesto" (rimpiazza il vecchio CLAUDE.md)
+  "00_INDICE.md",
+  "00_FONTI_NORMATIVE.md",
+  "00_GLOSSARIO.md",
+  "01_SYSTEM/01_PERSONA_aicertus.md",
+  "01_SYSTEM/02_PROTOCOLLO_ASK_BEFORE_ANSWER.md",
+  "01_SYSTEM/03_PROTOCOLLO_HANDOFF_QM.md",
+  "01_SYSTEM/04_PROTOCOLLO_CITAZIONI.md",
+  "01_SYSTEM/05_TRE_LIVELLI_CONFIDENZA.md",
+  "01_SYSTEM/06_GOVERNANCE_AI.md",
+  # Logica ispettiva (ex come-pensa + NC-patterns)
+  "02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md",
+  "02_LOGICA_ISPETTIVA/03_RISPOSTA_NC.md",
+  # Mappa requisiti (ex MAPPA_ESPLOSA_REQUISITI_ISO17025)
+  "03_REQUISITI/00_MAPPA_ESPLOSA.md",
+  # § 6 Risorse — blocco completo (ex sezione-6); 6.2 personale è il cuore del profilo
+  "03_REQUISITI/sez_6_1_risorse_generali.md",
+  "03_REQUISITI/sez_6_2_personale.md",
+  "03_REQUISITI/sez_6_3_strutture_ambiente.md",
+  "03_REQUISITI/sez_6_4_dotazioni.md",
+  "03_REQUISITI/sez_6_5_riferibilita.md",
+  "03_REQUISITI/sez_6_6_prodotti_servizi_esterni.md",
 ]
 
 trigger_prompt = """

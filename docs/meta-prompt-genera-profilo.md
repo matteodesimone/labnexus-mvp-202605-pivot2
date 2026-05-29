@@ -58,12 +58,13 @@ temperature    = 0.9
 max_tokens     = 8192
 context_window = 262000                    # 262K Sprint 1.5.C (era 128K Sprint 1)
 
-# OBBLIGATORIO — almeno 1 file della KB-ispettore (path relativi a ./KB-ispettore/)
+# OBBLIGATORIO — almeno 1 file della KB-ispettore (path relativi a ./KB-ispettore/).
+# Struttura KB v2.1: cartelle numerate (vedi sezione 4 per la lista completa).
 kb_files = [
-  "CLAUDE.md",
-  "come-pensa-un-ispettore.md",
-  "sezioni-ISO/sezione-N-...md",            # sotto-cartelle ammesse
-  "NC-patterns/...md",
+  "00_INDICE.md",
+  "01_SYSTEM/01_PERSONA_aicertus.md",
+  "02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md",
+  "03_REQUISITI/sez_7_2_selezione_verifica_validazione_metodi.md",   # esempio sotto-sezione §
 ]
 
 # TRIGGER — XOR: scegli UNO dei due (Sprint 1.5.B FR-16)
@@ -103,24 +104,50 @@ profilo_labnexus = "<nome>"
 
 ---
 
-## 4. File disponibili nella KB-ispettore
+## 4. File disponibili nella KB-ispettore (struttura v2.1)
 
-Quando proponi `kb_files`, scegli SOLO da questa lista. **NON inventare path**.
+Quando proponi `kb_files`, scegli SOLO da questa lista (path relativi a `./KB-ispettore/`). **NON inventare path**. La KB v2.1 è organizzata in cartelle numerate.
 
-| Path (relativo a `./KB-ispettore/`) | Cosa contiene |
+### Core — "sempre in contesto" (includi SEMPRE tutto questo blocco; rimpiazza il vecchio `CLAUDE.md`)
+
+| Path | Cosa contiene |
 |---|---|
-| `CLAUDE.md` | Identità dell'ispettore, ruolo, tono base. **Includi sempre.** |
-| `come-pensa-un-ispettore.md` | Framework di lettura ispettiva (causa-effetto, mappatura SGQ, segnali deboli). **Includi quasi sempre.** |
-| `MAPPA_ESPLOSA_REQUISITI_ISO17025.md` | Mappa completa dei requisiti ISO 17025:2017 esplosi a livello operativo. |
-| `sezioni-ISO/sezione-4-requisiti-generali-domande.md` | Domande ispettive su §4 (imparzialità, riservatezza, struttura). |
-| `sezioni-ISO/sezione-5-requisiti-strutturali-domande.md` | Domande su §5 (entità giuridica, ruoli, autorità). |
-| `sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md` | Domande su §6 (personale, competenze, locali, apparecchiature, tracciabilità). |
-| `sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md` | Domande su §7 (riesame richieste, metodi, validazione, campionamento, manipolazione, validità risultati, rapporti, NC, reclami). |
-| `sezioni-ISO/sezione-8-sgq-domande.md` | Domande su §8 (sistema gestione qualità, riesame direzione, rischi). |
-| `NC-patterns/come-rispondere-NC-ACCREDIA.md` | Pattern di risposta a NC ACCREDIA (meccanismo, estensione, efficacia, correzione vs azione correttiva). |
-| `NC-patterns/errori-fatali-da-evitare.md` | Errori ricorrenti da NON commettere nei rapporti ispettivi. |
+| `00_INDICE.md` | Mappa di consultazione della KB |
+| `00_FONTI_NORMATIVE.md` | Registro chiuso delle fonti citabili |
+| `00_GLOSSARIO.md` | Glossario ISO/Accredia |
+| `01_SYSTEM/01_PERSONA_aicertus.md` | Identità, ruolo e tono dell'agente |
+| `01_SYSTEM/02_PROTOCOLLO_ASK_BEFORE_ANSWER.md` | Quando chiedere prima di rispondere |
+| `01_SYSTEM/03_PROTOCOLLO_HANDOFF_QM.md` | Chiusura di ogni output con handoff al QM |
+| `01_SYSTEM/04_PROTOCOLLO_CITAZIONI.md` | Regole formali di citazione norma/RT/RG |
+| `01_SYSTEM/05_TRE_LIVELLI_CONFIDENZA.md` | Lettura solida / prudenziale / da confermare |
+| `01_SYSTEM/06_GOVERNANCE_AI.md` | Governance dell'AI in laboratorio |
 
-**Regola**: per la maggior parte delle capability, includi `CLAUDE.md` + `come-pensa-un-ispettore.md` + la `sezioni-ISO/sezione-N-...md` direttamente pertinente + uno o entrambi i file `NC-patterns/`. Per capability trasversali (es. review-pack annuale, audit-checklist completa), includi anche `MAPPA_ESPLOSA_REQUISITI_ISO17025.md` e più sezioni ISO.
+### Logica ispettiva (`02_LOGICA_ISPETTIVA/`)
+
+| Path | Cosa contiene |
+|---|---|
+| `02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md` | Framework di lettura ispettiva (ex `come-pensa-un-ispettore`). **Includi quasi sempre.** |
+| `02_LOGICA_ISPETTIVA/02_TRE_LIVELLI_DI_CONTROLLO.md` | Pattern meccanismo → estensione → efficacia |
+| `02_LOGICA_ISPETTIVA/03_RISPOSTA_NC.md` | Risposta a NC Accredia (ex `come-rispondere-NC-ACCREDIA`) |
+| `02_LOGICA_ISPETTIVA/04_ERRORI_FATALI.md` | Errori che generano NC grave (ex `errori-fatali-da-evitare`) |
+
+### Requisiti per sotto-sezione norma (`03_REQUISITI/`, seleziona i § pertinenti)
+
+`03_REQUISITI/00_MAPPA_ESPLOSA.md` è l'indice navigabile (ex mappa esplosa). Poi un file per sotto-§ (tutti con prefisso `03_REQUISITI/` e suffisso `.md`):
+- **§ 4** `sez_4_imparzialita_riservatezza` · **§ 5** `sez_5_strutturali`
+- **§ 6** `sez_6_1_risorse_generali`, `sez_6_2_personale`, `sez_6_3_strutture_ambiente`, `sez_6_4_dotazioni`, `sez_6_5_riferibilita`, `sez_6_6_prodotti_servizi_esterni`
+- **§ 7** `sez_7_1_riesame_richieste`, `sez_7_2_selezione_verifica_validazione_metodi`, `sez_7_3_campionamento`, `sez_7_4_manipolazione_oggetti`, `sez_7_5_registrazioni_tecniche`, `sez_7_6_incertezza`, `sez_7_7_assicurazione_validita`, `sez_7_8_presentazione_risultati`, `sez_7_9_reclami`, `sez_7_10_attivita_non_conformi`, `sez_7_11_controllo_dati`
+- **§ 8** `sez_8_1_opzioni_AB`, `sez_8_2_documentazione_sgq`, `sez_8_3_controllo_documenti`, `sez_8_4_controllo_registrazioni`, `sez_8_5_rischi_opportunita`, `sez_8_6_miglioramento`, `sez_8_7_azioni_correttive`, `sez_8_8_audit_interni`, `sez_8_9_riesame_direzione`
+
+### Appendici trasversali (`04_APPENDICI/`, includi se il tema è specifico)
+
+`A1_validazione_metodi`, `A2_incertezza_misura`, `A3_riferibilita_taratura`, `A4_materiali_riferimento_CRM`, `A5_prove_valutative_PT_ILC`, `A6_audit_interni_riesame_direzione`, `A7_campionamento`, `A8_gestione_NC_da_accreditatore` (prefisso `04_APPENDICI/`, suffisso `.md`).
+
+### Orchestratore (`05_ORCHESTRATORE/`)
+
+| `05_ORCHESTRATORE/LabNexus_CoWork_KB.md` | Architettura agentica + template di output (§ 15.2 CAPA Pack, 15.3 Equipment Alert, 15.4 Management Review Pack). Includilo se il trigger cita un template del CoWork KB. |
+
+**Regola di selezione**: includi SEMPRE l'intero **Core** + `02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md`. Aggiungi `02_LOGICA_ISPETTIVA/03_RISPOSTA_NC` e `…/04_ERRORI_FATALI` per task su NC/rilievi. Seleziona le sotto-sezioni `03_REQUISITI/sez_*` pertinenti al § in oggetto (approccio **mirato**, preferito); per capability trasversali (audit completo, review annuale) includi blocchi `§` interi e/o `00_MAPPA_ESPLOSA`. Aggiungi le `04_APPENDICI/` quando il tema è specifico (incertezza, PT, riferibilità, CRM…).
 
 ---
 
@@ -139,12 +166,23 @@ descrizione = "Revisione documentale in seguito a cambio di norma di riferimento
 # Override locale possibile aggiungendo le righe corrispondenti qui sotto.
 
 kb_files = [
-  "CLAUDE.md",
-  "come-pensa-un-ispettore.md",
-  "sezioni-ISO/sezione-6-risorse-personale-dotazioni-domande.md",
-  "sezioni-ISO/sezione-7-processo-metodi-validazione-domande.md",
-  "NC-patterns/come-rispondere-NC-ACCREDIA.md",
-  "NC-patterns/errori-fatali-da-evitare.md",
+  # Core sempre-in-contesto (vedi sezione 4 — includi sempre tutto il blocco)
+  "00_INDICE.md",
+  "00_FONTI_NORMATIVE.md",
+  "00_GLOSSARIO.md",
+  "01_SYSTEM/01_PERSONA_aicertus.md",
+  "01_SYSTEM/02_PROTOCOLLO_ASK_BEFORE_ANSWER.md",
+  "01_SYSTEM/03_PROTOCOLLO_HANDOFF_QM.md",
+  "01_SYSTEM/04_PROTOCOLLO_CITAZIONI.md",
+  "01_SYSTEM/05_TRE_LIVELLI_CONFIDENZA.md",
+  "01_SYSTEM/06_GOVERNANCE_AI.md",
+  # Logica ispettiva
+  "02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md",
+  "02_LOGICA_ISPETTIVA/03_RISPOSTA_NC.md",
+  "02_LOGICA_ISPETTIVA/04_ERRORI_FATALI.md",
+  # Requisiti pertinenti (mirato: qui § 6.4 dotazioni e § 7.2 metodi/validazione)
+  "03_REQUISITI/sez_6_4_dotazioni.md",
+  "03_REQUISITI/sez_7_2_selezione_verifica_validazione_metodi.md",
 ]
 
 trigger_prompt = """
@@ -175,10 +213,18 @@ provider: ollama
 modello: qwen3.6
 
 kb_files:
-  - CLAUDE.md
-  - come-pensa-un-ispettore.md
-  - NC-patterns/come-rispondere-NC-ACCREDIA.md
-  - NC-patterns/errori-fatali-da-evitare.md
+  - 00_INDICE.md
+  - 00_FONTI_NORMATIVE.md
+  - 00_GLOSSARIO.md
+  - 01_SYSTEM/01_PERSONA_aicertus.md
+  - 01_SYSTEM/02_PROTOCOLLO_ASK_BEFORE_ANSWER.md
+  - 01_SYSTEM/03_PROTOCOLLO_HANDOFF_QM.md
+  - 01_SYSTEM/04_PROTOCOLLO_CITAZIONI.md
+  - 01_SYSTEM/05_TRE_LIVELLI_CONFIDENZA.md
+  - 01_SYSTEM/06_GOVERNANCE_AI.md
+  - 02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md
+  - 02_LOGICA_ISPETTIVA/03_RISPOSTA_NC.md
+  - 02_LOGICA_ISPETTIVA/04_ERRORI_FATALI.md
 
 trigger_prompt: |
   Sulla base della tua identità di system context, esegui questo compito.
@@ -207,12 +253,21 @@ provider: ollama
 modello: qwen3.6
 
 kb_files:
-  - CLAUDE.md
-  - come-pensa-un-ispettore.md
-  - MAPPA_ESPLOSA_REQUISITI_ISO17025.md
-  - sezioni-ISO/sezione-8-sgq-domande.md
-  - NC-patterns/come-rispondere-NC-ACCREDIA.md
-  - NC-patterns/errori-fatali-da-evitare.md
+  - 00_INDICE.md
+  - 00_FONTI_NORMATIVE.md
+  - 00_GLOSSARIO.md
+  - 01_SYSTEM/01_PERSONA_aicertus.md
+  - 01_SYSTEM/02_PROTOCOLLO_ASK_BEFORE_ANSWER.md
+  - 01_SYSTEM/03_PROTOCOLLO_HANDOFF_QM.md
+  - 01_SYSTEM/04_PROTOCOLLO_CITAZIONI.md
+  - 01_SYSTEM/05_TRE_LIVELLI_CONFIDENZA.md
+  - 01_SYSTEM/06_GOVERNANCE_AI.md
+  - 02_LOGICA_ISPETTIVA/01_COME_PENSA_ISPETTORE.md
+  - 02_LOGICA_ISPETTIVA/03_RISPOSTA_NC.md
+  - 02_LOGICA_ISPETTIVA/04_ERRORI_FATALI.md
+  - 03_REQUISITI/00_MAPPA_ESPLOSA.md
+  - 03_REQUISITI/sez_8_9_riesame_direzione.md
+  - 04_APPENDICI/A6_audit_interni_riesame_direzione.md
 
 trigger_prompt: |
   Sulla base della tua identità di system context, esegui questo compito.

@@ -107,6 +107,29 @@ I pattern semantici sono PROGETTO-SPECIFIC: devi enumerarli a mano sulla base de
 
 Apply pre-emptive: durante step 8 del plan 1.5.B "Update docs", esegui BOTH grep sintattici E semantici PRIMA del /v-review. Il review loop 1 di 1.5.B ha trovato 5 HIGH doc-drift che si potevano catturare con grep semantici (es. "default ollama" in meta-prompt). Costo: 5 min in più al implement. Risparmio: ~30 min di loop 2 fix-and-verify.
 
+## Estensione Sprint 1.5.E: refactor strutturale di una risorsa condivisa
+
+Lesson dal bugfix 2026-05-29 (KB-ispettore v01 flat → v2.1 cartelle numerate): un pivot non inverte solo **affermazioni** nei docs — un **refactor di struttura di una risorsa condivisa** (cartella KB, schema, set di template) invalida i **CONSUMER by-product** che referenziano i path/nomi della risorsa. Qui il refactor della KB aveva lasciato rotti:
+
+- i `kb_files` dei 7 profili (path v01 → `profile.Validate` hard-fail → nessuna capability partiva)
+- la whitelist + esempi di `docs/meta-prompt-genera-profilo.md` (avrebbe **rigenerato** profili rotti → vettore di regressione)
+- le fixture/sample che imitano la struttura della risorsa
+
+### Regola
+
+Quando rifattorizzi la **struttura** di una risorsa condivisa, oltre al doc-audit grep:
+
+1. **Enumera i consumer** che referenziano path/nomi della risorsa (non solo prosa: anche array di config, whitelist in meta-prompt, fixture). Grep i token della **vecchia struttura** (`sezioni-ISO/`, `NC-patterns/`, `CLAUDE.md`…) su `profili/ docs/ .pipeline/`.
+2. **Rimappa ogni consumer** alla nuova struttura.
+3. **Aggiungi un test "shipped-vs-shipped"**: valida i consumer SHIPPATI (es. `profili/*.toml`) contro la risorsa SHIPPATA (il `--kb-dir` runtime, non una fixture stub). Una fixture minima self-contained NON cattura questo bug. Vedi `features/shipped_profiles_kb_test.go`.
+4. **Guardia anti-regressione sul generatore**: se esiste un meta-prompt/generatore che insegna la struttura, aggiungi un test che fallisce se ricompaiono i token della vecchia struttura.
+
+### Corollario macOS: symlink → Finder alias
+
+Un symlink git verso una risorsa può essere silenziosamente sostituito da un **MacOS Alias file** (binario Finder, type-change `T` in `git status`) se qualcuno lo "apre/sposta" dal Finder. Runner default e `build-zip.sh` (`cp -RL`) si rompono. Guardia: un test che asseri `filepath.EvalSymlinks(rootPath) == EvalSymlinks(canonicalPath)`, non solo `os.Stat(...).IsDir()`.
+
+Vedi `.pipeline/solutions/2026-05-29-bugfix-kb-v2.1-rimappatura-profili.md`.
+
 ## Quando NON applicare
 
 - Bugfix di portata limitata (1-2 file, semantica invariata): doc audit grep è overkill

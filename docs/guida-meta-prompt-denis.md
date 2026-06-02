@@ -6,7 +6,7 @@
 
 - Un browser e l'account `claude.ai`.
 - `labnexus` installato sul tuo Mac (lo zip già consegnato).
-- L'eseguibile `labnexus` accessibile dal terminale (o dentro `labnexus.app/Contents/MacOS/labnexus-bin`).
+- L'eseguibile `labnexus` accessibile dal terminale (binary CLI standalone al root dello zip; su macOS il doppio click avviene via il launcher `labnexus.command`).
 - Il file `docs/meta-prompt-genera-profilo.md` (questo è incluso nello zip).
 
 ## Passi
@@ -33,7 +33,7 @@ Più sei specifico, meno domande Claude ti farà.
 
 ### 4. Rispondi alle domande di chiarimento
 
-Se la descrizione è generica, Claude ti farà 1-3 domande prima di produrre lo YAML. Tipicamente:
+Se la descrizione è generica, Claude ti farà 1-3 domande prima di produrre il profilo TOML. Tipicamente:
 
 - Quali file ricevi tipicamente in input?
 - Cosa deve produrre l'output? Una struttura specifica?
@@ -42,27 +42,26 @@ Se la descrizione è generica, Claude ti farà 1-3 domande prima di produrre lo 
 
 Rispondi con il minimo necessario. Non serve essere lunghi.
 
-### 5. Salva lo YAML che Claude produce
+### 5. Salva il TOML che Claude produce
 
 Quando hai informazioni sufficienti, Claude ti produrrà un blocco markdown del tipo:
 
 ```
-Ecco lo YAML per il profilo `<nome>`:
+# Profilo `<nome>` pronto
 
-​```yaml
-profilo: <nome>
-...
+## 1. Crea il file di profilo
+
+​```toml
+profilo     = "<nome>"
+descrizione = "<una riga>"
+kb_files = [ ... ]
+trigger_prompt = """ ... """
 ​```
 
 **Note sulle scelte**: ...
-
-**Verifica dello schema**:
-​```bash
-labnexus validate <nome> --profiles-dir ./profili --kb-dir ./KB-ispettore
-​```
 ```
 
-Copia il **contenuto del blocco toml** (senza i ` ```toml `) e salvalo in `profili/<nome>.toml` (Sprint 1.5.B+; in Sprint 1 era `.yml`).
+Copia il **contenuto del blocco toml** (senza i ` ```toml `) e salvalo in `profili/<nome>.toml` (Sprint 1.5.B+; in Sprint 1 era `.yml`). I campi `provider`/`modello`/parametri normalmente NON compaiono: sono ereditati dal master `labnexus.config.toml` (default `eurouter` + `qwen3.5-122b-a10b`).
 
 ### 6. Valida lo schema
 
@@ -72,7 +71,7 @@ Apri il terminale, vai nella cartella di `labnexus` (quella con `profili/` e `KB
 ./labnexus validate <nome>
 ```
 
-(oppure dentro il bundle `.app`: `./labnexus.app/Contents/MacOS/labnexus-bin validate <nome>`)
+(il binary `labnexus` è lo stesso file standalone che lanci col doppio click via `labnexus.command`)
 
 Output atteso: `schema OK` con exit code 0.
 
@@ -80,9 +79,9 @@ Output atteso: `schema OK` con exit code 0.
 
 - *"trigger_prompt troppo corto"*: chiedi a Claude di espandere il `trigger_prompt`.
 - *"kb_file X non esiste in ./KB-ispettore/"*: Claude ha inventato un path. Chiedigli di ri-selezionare dalla lista esatta nella sezione 4 del meta-prompt.
-- *"provider X non ammesso"*: deve essere `ollama` o `eurouter`. Normalmente `ollama`.
+- *"provider X non ammesso"*: deve essere `ollama` o `eurouter`. Normalmente il campo `provider` è OMESSO nel profilo (eredita `eurouter` dal master). Aggiungilo solo per forzare `ollama` (on-device).
 
-Riportato l'errore a Claude, lui correggerà e ti darà il nuovo YAML. Sostituisci e ri-valida.
+Riportato l'errore a Claude, lui correggerà e ti darà il nuovo TOML. Sostituisci e ri-valida.
 
 ### 7. (Opzionale) Verifica rapida del profilo
 
@@ -102,7 +101,9 @@ Questo fa un dry-run (parsing + stima token, senza chiamare il modello). Se vuoi
 
 ### 8. Aggiungere il profilo come lavoro concierge (Sprint 1.5.C)
 
-**Modalità raccomandata** (auto-discovery): crea una cartella in `lavori/` per il nuovo tipo di lavoro:
+**Modalità più semplice (consigliata, niente Terminal)**: in `lavori/` duplica la cartella **`+ NUOVO LAVORO (copiami e rinominami)`**, rinominala, mettici i dati e doppio click su `Esegui.command`. Un assistente ti chiede profilo + prompt e crea il `_labnexus.toml` per te (vedi `GUIDA.md`). Le modalità manuali qui sotto restano valide per chi usa il Terminale.
+
+**Modalità auto-discovery (manuale)**: crea una cartella in `lavori/` per il nuovo tipo di lavoro:
 
 ```bash
 mkdir lavori/Nuovo-tipo-lavoro\ —\ Profilo\ <nome>
@@ -113,6 +114,16 @@ cat > _labnexus.toml << EOF
 profile = "<nome>"
 EOF
 ```
+
+**Trigger override (opzionale).** Il job usa di default il `trigger_prompt` del profilo. Se per questo lavoro vuoi un trigger diverso, aggiungi al `_labnexus.toml` UNA sola riga (XOR — mai entrambe):
+
+```toml
+profile = "<nome>"
+trigger_prompt_file = "Prompt_INPUT.rtf"   # un file .rtf/.txt/.md editabile in Word/Pages, nella cartella
+# trigger_prompt = "..."                   # oppure un testo inline (≥ 50 caratteri)
+```
+
+L'override del job vince sul default del profilo; la sorgente risolta finisce nel `.log` di audit (`trigger risolto da: …`).
 
 Poi:
 ```bash

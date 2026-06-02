@@ -35,6 +35,7 @@ make smoke        # smoke test del binario su Test 1 reale (dry-run, no LLM)
 CLI:
 ```
 labnexus list                         # elenca i profili installati
+labnexus init ./lavori/MioLavoro      # wizard: crea _labnexus.toml (profilo + prompt) per una cartella di lavoro
 labnexus describe revisione           # mostra il profilo (kb_files, modello, ecc.)
 labnexus validate revisione           # controlla lo schema YAML del profilo
 labnexus check revisione --input ./test1   # dry-run: parsing + stima token, no LLM
@@ -77,6 +78,18 @@ Rimuove il quarantine flag aggiunto da macOS quando il file è stato scaricato/s
 1. Control-clic sull'icona di `labnexus` (o `labnexus.command`) nel Finder
 2. "Apri" → conferma
 3. Operazione una tantum per ciascuno dei 2 file
+
+### Cartelle su cloud-sync (kDrive, Dropbox, OneDrive, Google Drive)
+
+I servizi di sincronizzazione cloud **azzerano il bit di esecuzione** (`+x`) dei
+file. Se al doppio click compare `./labnexus: Permission denied`, ripristina i
+permessi una tantum da Terminal nella cartella del deliverable:
+```bash
+chmod +x labnexus labnexus.command
+```
+Il launcher `labnexus.command` prova comunque a ripristinare da solo il `+x` sul
+binary a ogni avvio; resta da sistemare a mano solo il `.command` stesso se anche
+lui perde il permesso (il doppio click non parte affatto in quel caso).
 
 ## Provider LLM
 

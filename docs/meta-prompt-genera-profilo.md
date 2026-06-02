@@ -31,11 +31,11 @@ Devi:
 
 1. Legge un **profilo TOML** in `./profili/<nome>.toml` (Sprint 1.5.B; era `.yml` in Sprint 1) — campi opzionali ereditati dal `labnexus.config.toml` master al root.
 2. Carica i **kb_files** dichiarati nel profilo come *system context* (concatenati con separatore `\n\n---\n\n`).
-3. Aggiunge il **`trigger_prompt`** (inline) o il contenuto del file `trigger_prompt_file` (opzionale, XOR) + il contenuto della cartella `--input` come *user message*.
+3. Risolve il **trigger** (l'istruzione del task, in cima all'*user message*) e poi aggiunge il contenuto della cartella `--input` (i dati, sotto `## File di input`). Il trigger è XOR (testo O file) a due livelli, con precedenza **override del job (`_labnexus.toml`) › default del profilo**: se il `_labnexus.toml` del lavoro dichiara `trigger_prompt` o `trigger_prompt_file`, quello vince; altrimenti si usa il `trigger_prompt`/`trigger_prompt_file` del profilo. Se il trigger viene da un **file** presente anche nella cartella, quel file è **escluso dall'input** (de-dup: il prompt non viene inviato due volte). La sorgente risolta è tracciata nel `.log` di audit. Modello mentale: **SYSTEM** = KB (chi sei, regole ISO), **TRIGGER** = il compito, **INPUT** = i documenti.
 4. Chiama il provider LLM (`eurouter` cloud EU-GDPR di default Sprint 1.5+, oppure `ollama` localhost opzionale) in streaming.
 5. Scrive un file markdown con frontmatter YAML in `--output` + un file `.log` accoppiato (audit trail ISO 17025, Sprint 1.5.C NFR-11).
 
-**Concierge mode (Sprint 1.5.C)**: ogni cartella in `./lavori/<X>/` è auto-discovered come "job" se contiene un file `_labnexus.toml` con almeno `profile = "<nome>"`. Dentro ogni cartella di lavoro c'è un `Esegui.command`: Denis fa doppio click → esecuzione immediata senza Terminal, output in `lavori/<X>/output/`.
+**Concierge mode (Sprint 1.5.C)**: ogni cartella in `./lavori/<X>/` è auto-discovered come "job" se contiene un file `_labnexus.toml` con almeno `profile = "<nome>"`. Lo stesso `_labnexus.toml` può opzionalmente sovrascrivere il trigger del profilo (`trigger_prompt` inline o `trigger_prompt_file`, XOR — vedi sezione 7). Dentro ogni cartella di lavoro c'è un `Esegui.command`: Denis fa doppio click → esecuzione immediata senza Terminal, output in `lavori/<X>/output/`.
 
 La KB-ispettore (scritta da Denis Brazzo) vive in `./KB-ispettore/` ed è la **fonte autorevole** sul tono ispettivo e sui requisiti ISO 17025 — non riscriverla, selezionala.
 
@@ -353,10 +353,13 @@ Nella stessa cartella appena creata (`lavori/<Descrizione> — Profilo <nome>/`)
 ​```toml
 # Metadata Sprint 1.5.C — auto-discovery via labnexus jobs.
 profile = "<nome>"
-# trigger_prompt_file = "Prompt_INPUT.rtf"
+# Override trigger (opzionale, XOR): sovrascrive il default del profilo per
+# QUESTO lavoro. Scommenta UNA sola delle due righe (mai entrambe).
+# trigger_prompt_file = "Prompt_INPUT.rtf"   # un file .rtf/.txt/.md editabile in Word/Pages, dentro questa cartella
+# trigger_prompt = "..."                     # oppure un testo inline (≥ 50 caratteri)
 ​```
 
-(la riga `trigger_prompt_file` è commentata. Scommettala SOLO se vuoi sostituire il `trigger_prompt` inline del profilo con un file `.rtf`/`.txt`/`.md` editabile in Word/Pages dentro questa cartella.)
+Le righe di override sono **commentate**: così il job usa il `trigger_prompt` del profilo (il default shipped). Scommetta UNA delle due (XOR — mai entrambe) solo se per questo lavoro vuole sovrascrivere il default: `trigger_prompt_file` per un file editabile in Word/Pages dentro la cartella, oppure `trigger_prompt` per un testo inline. Precedenza a runtime: **override del job › default del profilo**. La sorgente risolta viene scritta nel `.log` di audit (riga `trigger risolto da: …`).
 
 ## 4. Copia l'Esegui.command nella nuova cartella
 

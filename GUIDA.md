@@ -132,6 +132,19 @@ Apri il `.md` con il tuo editor (Obsidian, TextEdit, Marked, ecc.) e leggi.
 
 Stessa cosa: doppio click sull'`Esegui.command` di un'altra cartella in `lavori/`. Ogni cartella è indipendente, puoi alternare l'ordine come vuoi.
 
+### Creare un NUOVO lavoro (dati nuovi) — con l'assistente
+
+Per una nuova attività su dati nuovi non devi toccare nessun file di configurazione: c'è una cartella template che fa tutto.
+
+1. In `lavori/` trovi **`+ NUOVO LAVORO (copiami e rinominami)`**. **Duplicala** (tasto destro → Duplica).
+2. **Rinomina** la copia col nome del tuo lavoro (es. `Audit interno marzo 2026`). Usa un nome diverso per ogni lavoro.
+3. Metti dentro la copia i tuoi **file dati** (xlsx, docx, pdf, csv…). Non serve il prompt.
+4. **Doppio click su `Esegui.command`** dentro la copia. Un assistente ti chiede:
+   - quale **capability** (profilo) usare;
+   - se usare il **prompt predefinito** del profilo (parte subito), oppure **crearne uno nuovo** (viene creato `Prompt_INPUT.txt`: aprilo, scrivi le istruzioni, salva e rilancia).
+
+L'output finisce come sempre nella sottocartella `output/` della tua copia. (Dietro le quinte l'assistente crea il file `_labnexus.toml` per te: non devi più scriverlo a mano.)
+
 ### Modo alternativo (TUI sequenziale)
 
 Se preferisci scegliere la capability da una lista invece che navigare il Finder, puoi anche:

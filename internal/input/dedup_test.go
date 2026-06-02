@@ -35,6 +35,31 @@ func TestParseDir_ExcludesTriggerFile(t *testing.T) {
 	}
 }
 
+// I file infrastrutturali (Esegui.command, _labnexus.toml, .DS_Store) NON
+// devono finire tra i dati inviati al modello. Nota: LEGGIMI.txt NON è
+// infrastrutturale (può contenere dati veri) — si esclude via campo `exclude`
+// del _labnexus.toml, non hard-coded.
+func TestParseDir_SkipsInfraFiles(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"Esegui.command", "dato.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x contenuto"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := input.ParseDir(dir)
+	if err != nil {
+		t.Fatalf("ParseDir: %v", err)
+	}
+	for _, f := range res.Files {
+		if f.Name == "Esegui.command" {
+			t.Errorf("file infrastrutturale %q non deve essere mandato al modello", f.Name)
+		}
+	}
+	if len(res.Files) != 1 || res.Files[0].Name != "dato.txt" {
+		t.Errorf("atteso solo dato.txt, got %+v", res.Files)
+	}
+}
+
 // L'esclusione deve normalizzare il path (filepath.Clean): trigger_prompt_file
 // può arrivare in forma non canonica (es. "./Prompt.txt") ma il walk produce
 // rel-path puliti. Senza Clean la de-dup salterebbe silenziosamente.

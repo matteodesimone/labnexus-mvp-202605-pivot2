@@ -53,6 +53,9 @@ type Config struct {
 	// dei due è setted, vince sul default del profilo. Vuoti = usa il profilo.
 	TriggerPromptJob     string
 	TriggerPromptFileJob string
+	// ExcludeInput: file (rel a InputDir) da NON inviare al modello, dal campo
+	// `exclude` del _labnexus.toml del job. Si somma al file-trigger de-duplicato.
+	ExcludeInput []string
 }
 
 // triggerOverride è l'override del trigger proveniente dal job (_labnexus.toml).
@@ -86,9 +89,13 @@ func Run(cfg Config) (*Result, error) {
 		return nil, err
 	}
 	ov := triggerOverride{Inline: cfg.TriggerPromptJob, File: cfg.TriggerPromptFileJob}
-	// De-dup: escludi dall'input il file usato come trigger (se il trigger viene
-	// da file), così non viene inviato due volte (trigger + dato).
-	parsed, err := parseInputDir(cfg, effectiveTriggerFile(p, ov), log)
+	// Esclusioni dall'input: i file `exclude` del job + il file usato come trigger
+	// (de-dup: se il trigger viene da file non va inviato anche come dato).
+	exclude := append([]string{}, cfg.ExcludeInput...)
+	if tf := effectiveTriggerFile(p, ov); tf != "" {
+		exclude = append(exclude, tf)
+	}
+	parsed, err := parseInputDir(cfg, exclude, log)
 	if err != nil {
 		return nil, err
 	}
@@ -207,14 +214,16 @@ func loadKBTexts(cfg Config, p *profile.Profile, log *runlog.Logger) ([]string, 
 }
 
 // parseInputDir esegue il walk non-ricorsivo e parsa i file della cartella di input.
-func parseInputDir(cfg Config, excludeTriggerFile string, log *runlog.Logger) (*input.ParsedResult, error) {
+func parseInputDir(cfg Config, excludeRel []string, log *runlog.Logger) (*input.ParsedResult, error) {
 	log.BeginStep("parsing input")
 	defer log.EndStep()
 	log.Info("input dir: %s", cfg.InputDir)
-	if excludeTriggerFile != "" {
-		log.Info("escluso dall'input (usato come trigger): %s", excludeTriggerFile)
+	for _, e := range excludeRel {
+		if strings.TrimSpace(e) != "" {
+			log.Info("escluso dall'input: %s", e)
+		}
 	}
-	parsed, err := input.ParseDir(cfg.InputDir, excludeTriggerFile)
+	parsed, err := input.ParseDir(cfg.InputDir, excludeRel...)
 	if err != nil {
 		return nil, fmt.Errorf("runner: parse input: %w", err)
 	}

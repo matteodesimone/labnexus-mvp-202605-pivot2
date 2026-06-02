@@ -23,9 +23,10 @@ type Job struct {
 	Name              string // nome del job (default: nome cartella)
 	Path              string // path assoluto della cartella `lavori/<X>/`
 	Profile           string // nome profile da `_labnexus.toml` o fallback convention
-	TriggerPrompt     string // opzionale, override trigger inline (XOR con TriggerPromptFile)
-	TriggerPromptFile string // opzionale, override trigger da file, path relativo a Path
-	InputDir          string // = Path (la cartella stessa è l'input)
+	TriggerPrompt     string   // opzionale, override trigger inline (XOR con TriggerPromptFile)
+	TriggerPromptFile string   // opzionale, override trigger da file, path relativo a Path
+	Exclude           []string // opzionale, file (rel a Path) da NON inviare al modello
+	InputDir          string   // = Path (la cartella stessa è l'input)
 	OutputDir         string // = Path + "/output" (default)
 	Source            string // "metadata" | "convention" — come è stato risolto
 	Warning           string // se non vuoto, semantic-level warning (es. profile inesistente in profili/)
@@ -61,6 +62,7 @@ type metadataDoc struct {
 	Profile           string          `toml:"profile"`
 	TriggerPrompt     string          `toml:"trigger_prompt"`
 	TriggerPromptFile string          `toml:"trigger_prompt_file"`
+	Exclude           []string        `toml:"exclude"`
 	PDF               metadataPDFDoc  `toml:"pdf"`
 	Docx              metadataDocxDoc `toml:"docx"`
 }
@@ -83,6 +85,7 @@ type Metadata struct {
 	Profile           string
 	TriggerPrompt     string
 	TriggerPromptFile string
+	Exclude           []string // file (rel a cartella job) da NON inviare al modello
 	// PDFEnabled override per-capability del default [pdf] master.
 	// nil = non setted; risolto via config.ResolvePDFEnabled.
 	PDFEnabled *bool
@@ -139,6 +142,7 @@ func resolveJob(lavoriDir, folderName, realLavoriDir string) *Job {
 		j := newJob(folderName, jobPath, m.Profile, m.TriggerPrompt, m.TriggerPromptFile, "metadata")
 		j.PDFEnabled = m.PDFEnabled
 		j.DocxEnabled = m.DocxEnabled
+		j.Exclude = m.Exclude
 		return j
 	}
 	// Fallback convention naming
@@ -215,6 +219,9 @@ func WriteMetadata(dir, profileName, promptFile string) error {
 	if pf := strings.TrimSpace(promptFile); pf != "" {
 		fmt.Fprintf(&b, "trigger_prompt_file = %q\n", pf)
 	}
+	b.WriteString("# Per NON inviare al modello certi file della cartella (note, bozze,\n")
+	b.WriteString("# il LEGGIMI...), elenca i loro nomi qui sotto:\n")
+	b.WriteString("# exclude = [\"LEGGIMI.txt\"]\n")
 	return os.WriteFile(filepath.Join(dir, metadataFileName), []byte(b.String()), 0o644)
 }
 
@@ -260,6 +267,7 @@ func LoadMetadata(path string) (*Metadata, error) {
 		Profile:           doc.Profile,
 		TriggerPrompt:     doc.TriggerPrompt,
 		TriggerPromptFile: doc.TriggerPromptFile,
+		Exclude:           doc.Exclude,
 		PDFEnabled:        doc.PDF.Enabled,
 		DocxEnabled:       doc.Docx.Enabled,
 	}, nil

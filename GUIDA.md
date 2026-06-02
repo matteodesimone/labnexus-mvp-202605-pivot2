@@ -148,6 +148,8 @@ Per una nuova attività su dati nuovi non devi toccare nessun file di configuraz
 
 In breve: **primo click = configura, secondo click = esegui.** L'output finisce nella sottocartella `output/` della tua copia. (Dietro le quinte l'assistente crea il file `_labnexus.toml` per te: non devi più scriverlo a mano.)
 
+> **Tenere un file senza mandarlo al modello.** Se nella cartella hai file che NON vuoi inviare (bozze, note, il `LEGGIMI.txt`), apri il `_labnexus.toml` con un editor di testo e aggiungi una riga `exclude = ["nome_file.txt"]` con i nomi da escludere. Il `LEGGIMI.txt` del template puoi anche semplicemente cancellarlo.
+
 ### Modo alternativo (TUI sequenziale)
 
 Se preferisci scegliere la capability da una lista invece che navigare il Finder, puoi anche:

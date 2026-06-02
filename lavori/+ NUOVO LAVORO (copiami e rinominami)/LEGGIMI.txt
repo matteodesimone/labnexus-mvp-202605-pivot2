@@ -1,6 +1,11 @@
 COME CREARE UN NUOVO LAVORO
 ===========================
 
+>>> Questo file (LEGGIMI.txt) sono solo istruzioni: dopo aver copiato la
+>>> cartella CANCELLALO (non fa parte dei tuoi dati). Se preferisci tenerlo,
+>>> aggiungilo alla riga "exclude" del _labnexus.toml cosi' non viene inviato
+>>> al modello.
+
 Questa cartella è un TEMPLATE. Per avviare una nuova attività su dati nuovi
 NON serve il Terminale: segui questi 4 passi nel Finder.
 

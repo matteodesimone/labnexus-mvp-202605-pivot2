@@ -279,12 +279,14 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 	}
 	var pdfJob, docxJob *bool
 	var triggerJobInline, triggerJobFile string
+	var excludeJob []string
 	if jobName != "" {
 		if j, err := resolveJobOrError(cmd, jobName); err == nil {
 			pdfJob = j.PDFEnabled
 			docxJob = j.DocxEnabled
 			triggerJobInline = j.TriggerPrompt
 			triggerJobFile = j.TriggerPromptFile
+			excludeJob = j.Exclude
 		}
 	}
 	var docxCLI *bool
@@ -307,6 +309,7 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 		Capability:           jobName,
 		TriggerPromptJob:     triggerJobInline,
 		TriggerPromptFileJob: triggerJobFile,
+		ExcludeInput:         excludeJob,
 	})
 	if err != nil {
 		return newExit(classifyError(err), "%v", err)

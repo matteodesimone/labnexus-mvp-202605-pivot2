@@ -99,6 +99,8 @@ func TestCleanPath_DragDropFinderPatterns(t *testing.T) {
 		{"path con leading + trailing space", "  /Users/denis/Test1  ", "/Users/denis/Test1"},
 		{"path con double quotes", `"/Users/denis/Test1"`, "/Users/denis/Test1"},
 		{"path pulito invariato", "/Users/denis/Test1", "/Users/denis/Test1"},
+		{"backslash-escaped spaces (drag&drop Terminal)", `/Users/denis/CAPABILITY\ D\ —\ Profilo\ x`, "/Users/denis/CAPABILITY D — Profilo x"},
+		{"backslash-escaped altri metacaratteri", `/Users/denis/a\&b\ \(c\)`, "/Users/denis/a&b (c)"},
 		{"empty", "", ""},
 		{"only whitespace", "   ", ""},
 		{"only quotes", "''", ""},
@@ -135,6 +137,25 @@ func TestValidateExistingDir_HandlesSingleQuotes(t *testing.T) {
 	quoted := "'" + d + "' "
 	if err := validateExistingDir(quoted); err != nil {
 		t.Errorf("validateExistingDir deve gestire single-quoted path da drag&drop, got: %v", err)
+	}
+}
+
+// TestValidateExistingDir_HandlesBackslashEscapedSpaces riproduce il caso reale
+// (Stefano 2026-06-02): trascinando nel campo TUI una cartella con spazi/em-dash,
+// Terminal incolla il path con backslash-escape (`CAPABILITY\ D\ —\ Profilo\ x`).
+// La TUI non è una shell: deve de-escapare prima di os.Stat, altrimenti cerca
+// una cartella con i backslash letterali nel nome e fallisce con "non esiste".
+func TestValidateExistingDir_HandlesBackslashEscapedSpaces(t *testing.T) {
+	parent := t.TempDir()
+	realName := "CAPABILITY D — Profilo audit-checklist"
+	realDir := filepath.Join(parent, realName)
+	if err := os.MkdirAll(realDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Path come lo incolla il drag&drop: spazi escapati con backslash.
+	escaped := filepath.Join(parent, `CAPABILITY\ D\ —\ Profilo\ audit-checklist`)
+	if err := validateExistingDir(escaped); err != nil {
+		t.Errorf("validateExistingDir deve de-escapare il path da drag&drop, got: %v", err)
 	}
 }
 

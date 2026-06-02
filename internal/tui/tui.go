@@ -102,16 +102,43 @@ func isExistingDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
-// cleanPath rimuove spazi, single quote, double quote da inizio e fine.
-// Il drag&drop di una cartella dal Finder al campo TUI tipicamente incolla
-// il path circondato da single quotes E con uno spazio finale (eredità del
-// comportamento Terminal). Senza pulizia, validateExistingDir fallisce con
-// "la cartella '/Users/foo/bar ' non esiste".
+// cleanPath normalizza il path inserito nel campo TUI gestendo i pattern di
+// drag&drop di Finder/Terminal macOS:
+//   - path circondato da single/double quote + spazio finale (Finder)
+//   - spazi e metacaratteri shell-escapati con backslash, es.
+//     "CAPABILITY\ D\ —\ Profilo\ x" (Terminal). La TUI NON è una shell:
+//     senza de-escape, os.Stat cerca una cartella coi backslash letterali e
+//     fallisce con "la cartella '...\\ ...' non esiste".
 func cleanPath(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.Trim(s, `'"`)
 	s = strings.TrimSpace(s) // eventuali spazi tra quote rimaste
+	s = unescapeDragPath(s)
 	return s
+}
+
+// shellEscapedChars sono i caratteri che Terminal/Finder fanno precedere da '\'
+// quando trascini una cartella nel campo input. Su macOS/Linux il backslash non
+// è mai un separatore di path, quindi rimuovere il backslash davanti a questi
+// caratteri è sicuro e ripristina il path reale.
+const shellEscapedChars = " \t!\"#$&'()*,:;<=>?[]^`{|}~"
+
+// unescapeDragPath rimuove i backslash usati come escape shell dal drag&drop.
+// Itera per byte: agisce solo su '\' (ASCII) seguito da un metacarattere ASCII;
+// le sequenze UTF-8 multibyte (es. em-dash) passano invariate.
+func unescapeDragPath(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) && strings.IndexByte(shellEscapedChars, s[i+1]) >= 0 {
+			continue // salta il backslash di escape, mantieni il carattere successivo
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 func validateExistingDir(s string) error {

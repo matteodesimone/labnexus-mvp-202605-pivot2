@@ -49,8 +49,12 @@ type SkippedFile struct {
 // ParseDir esegue il walk ricorsivo di dir, estrae testo per ogni file supportato.
 // I file ritornati hanno Name = path relativo a dir in formato POSIX. La cartella
 // `output/` e le cartelle con prefisso `.` vengono saltate (vedi labnexusInternalDirs).
-func ParseDir(dir string) (*ParsedResult, error) {
-	names, err := walkFilesDeterministic(dir)
+//
+// excludeRel sono path relativi a dir (POSIX) da escludere dall'input: serve per
+// de-duplicare il file usato come trigger_prompt_file, che altrimenti verrebbe
+// inviato sia come trigger sia come dato.
+func ParseDir(dir string, excludeRel ...string) (*ParsedResult, error) {
+	names, err := walkFilesDeterministic(dir, excludeRel)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +106,15 @@ func shouldSkipDir(name string) bool {
 // walkFilesDeterministic attraversa ricorsivamente dir e ritorna i path relativi
 // (POSIX, separatore `/`) ordinati alfabeticamente. Salta le sottocartelle
 // indicate da shouldSkipDir e i file in labnexusInternalFiles.
-func walkFilesDeterministic(root string) ([]string, error) {
+func walkFilesDeterministic(root string, excludeRel []string) ([]string, error) {
+	exclude := make(map[string]bool, len(excludeRel))
+	for _, e := range excludeRel {
+		// Clean normalizza forme non canoniche (es. "./Prompt.txt") sullo stesso
+		// formato dei rel-path prodotti da filepath.Rel (già puliti) nel walk.
+		if e = strings.TrimSpace(e); e != "" {
+			exclude[filepath.ToSlash(filepath.Clean(e))] = true
+		}
+	}
 	var names []string
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
@@ -124,7 +136,11 @@ func walkFilesDeterministic(root string) ([]string, error) {
 		if err != nil {
 			return fmt.Errorf("input: rel path %q: %w", path, err)
 		}
-		names = append(names, filepath.ToSlash(rel))
+		relSlash := filepath.ToSlash(rel)
+		if exclude[relSlash] {
+			return nil // file usato come trigger: escluso dall'input (de-dup)
+		}
+		names = append(names, relSlash)
 		return nil
 	})
 	if err != nil {

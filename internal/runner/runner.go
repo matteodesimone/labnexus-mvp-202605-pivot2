@@ -48,6 +48,18 @@ type Config struct {
 	// Capability: display name mostrato nell'header del PDF (es. "CAPABILITY A — Profilo revisione").
 	// Tipicamente il nome del job. Vuoto = fallback al nome del profilo.
 	Capability string
+	// TriggerPromptJob / TriggerPromptFileJob: override del trigger a livello job
+	// (da _labnexus.toml). XOR fra loro (validato in jobs.LoadMetadata). Se uno
+	// dei due è setted, vince sul default del profilo. Vuoti = usa il profilo.
+	TriggerPromptJob     string
+	TriggerPromptFileJob string
+}
+
+// triggerOverride è l'override del trigger proveniente dal job (_labnexus.toml).
+// Inline e File sono mutuamente esclusivi (XOR già validato a monte).
+type triggerOverride struct {
+	Inline string
+	File   string
 }
 
 // Result è l'esito dell'esecuzione.
@@ -73,11 +85,14 @@ func Run(cfg Config) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	parsed, err := parseInputDir(cfg, log)
+	ov := triggerOverride{Inline: cfg.TriggerPromptJob, File: cfg.TriggerPromptFileJob}
+	// De-dup: escludi dall'input il file usato come trigger (se il trigger viene
+	// da file), così non viene inviato due volte (trigger + dato).
+	parsed, err := parseInputDir(cfg, effectiveTriggerFile(p, ov), log)
 	if err != nil {
 		return nil, err
 	}
-	composed, err := composePromptFromInputs(p, kbTexts, parsed, cfg.InputDir, log)
+	composed, triggerSource, err := composePromptFromInputs(p, ov, kbTexts, parsed, cfg.InputDir, log)
 	if err != nil {
 		return nil, err
 	}
@@ -89,10 +104,11 @@ func Run(cfg Config) (*Result, error) {
 		printPromptWithPIIWarning(composed, os.Stdout, os.Stderr, isStdoutTTY())
 	}
 	if cfg.DryRun {
+		log.Info("trigger risolto da: %s", triggerSource)
 		log.Info("dry-run: nessuna chiamata LLM eseguita (%d token stimati)", check.Tokens)
 		return &Result{ExitCode: 0, TokensUsed: check.Tokens}, nil
 	}
-	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, log)
+	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, triggerSource, log)
 }
 
 // validateConfig riempie i default e verifica i campi obbligatori.
@@ -191,11 +207,14 @@ func loadKBTexts(cfg Config, p *profile.Profile, log *runlog.Logger) ([]string, 
 }
 
 // parseInputDir esegue il walk non-ricorsivo e parsa i file della cartella di input.
-func parseInputDir(cfg Config, log *runlog.Logger) (*input.ParsedResult, error) {
+func parseInputDir(cfg Config, excludeTriggerFile string, log *runlog.Logger) (*input.ParsedResult, error) {
 	log.BeginStep("parsing input")
 	defer log.EndStep()
 	log.Info("input dir: %s", cfg.InputDir)
-	parsed, err := input.ParseDir(cfg.InputDir)
+	if excludeTriggerFile != "" {
+		log.Info("escluso dall'input (usato come trigger): %s", excludeTriggerFile)
+	}
+	parsed, err := input.ParseDir(cfg.InputDir, excludeTriggerFile)
 	if err != nil {
 		return nil, fmt.Errorf("runner: parse input: %w", err)
 	}
@@ -215,28 +234,70 @@ func parseInputDir(cfg Config, log *runlog.Logger) (*input.ParsedResult, error) 
 // composePromptFromInputs costruisce system+user message per il provider.
 // Sprint 1.5.B: se profile.TriggerPromptFile è setted, carica il file
 // referenziato (relativo a inputDir, path-safe) e lo usa come trigger.
-func composePromptFromInputs(p *profile.Profile, kbTexts []string, parsed *input.ParsedResult, inputDir string, log *runlog.Logger) (*prompt.Composed, error) {
+// Ritorna anche la descrizione della sorgente del trigger (audit ISO 17025).
+func composePromptFromInputs(p *profile.Profile, ov triggerOverride, kbTexts []string, parsed *input.ParsedResult, inputDir string, log *runlog.Logger) (*prompt.Composed, string, error) {
 	log.BeginStep("composizione prompt")
 	defer log.EndStep()
 	inputMap := make(map[string]string, len(parsed.Files))
 	for _, f := range parsed.Files {
 		inputMap[f.Name] = f.Text
 	}
-	trigger, err := resolveTrigger(p, inputDir)
+	trigger, source, err := resolveTrigger(p, ov, inputDir)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	return prompt.Compose(trigger, kbTexts, inputMap)
+	composed, err := prompt.Compose(trigger, kbTexts, inputMap)
+	if err != nil {
+		return nil, "", err
+	}
+	return composed, source, nil
 }
 
-// resolveTrigger ritorna il trigger inline (p.TriggerPrompt) oppure carica
-// il file referenziato da p.TriggerPromptFile via input.ParseTriggerPromptFile
-// (FR-17 + NFR-6 path-safe). Validate ha già garantito XOR + minLen.
-func resolveTrigger(p *profile.Profile, inputDir string) (string, error) {
-	if p.TriggerPromptFile != "" {
-		return input.ParseTriggerPromptFile(inputDir, p.TriggerPromptFile)
+// resolveTrigger risolve il trigger applicando la precedenza a DUE livelli
+// (design Sprint 1.5.D, deciso col CTO):
+//
+//	override job (testo|file da _labnexus.toml) › default profilo (inline|file)
+//
+// Il trigger è XOR (testo O file) a ciascun livello: l'override del job (se
+// presente) sovrascrive sempre il default shipped nel profilo. Ritorna anche
+// una descrizione della sorgente risolta per l'audit trail. I path file sono
+// risolti via input.ParseTriggerPromptFile (FR-17 + NFR-6 path-safe). La
+// validazione XOR + minLen è già garantita a monte (jobs.LoadMetadata e
+// profile.Validate).
+// effectiveTriggerFile ritorna il path relativo (a InputDir) del file usato come
+// trigger, quando il trigger risolto proviene da un file. Stessa precedenza di
+// resolveTrigger (job file › job inline › profilo file › profilo inline). Ritorna
+// "" se il trigger è inline (nessun file da escludere dall'input).
+func effectiveTriggerFile(p *profile.Profile, ov triggerOverride) string {
+	if strings.TrimSpace(ov.File) != "" {
+		return ov.File
 	}
-	return p.TriggerPrompt, nil
+	if strings.TrimSpace(ov.Inline) != "" {
+		return "" // override inline del job: trigger non da file
+	}
+	if p.TriggerPromptFile != "" {
+		return p.TriggerPromptFile
+	}
+	return ""
+}
+
+func resolveTrigger(p *profile.Profile, ov triggerOverride, inputDir string) (trigger, source string, err error) {
+	// Livello 1: override del job (vince sul profilo). Emptiness via TrimSpace,
+	// coerente con la validazione XOR di jobs.LoadMetadata: un valore
+	// whitespace-only è "assente" e fa fallback al default del profilo.
+	if strings.TrimSpace(ov.File) != "" {
+		t, err := input.ParseTriggerPromptFile(inputDir, ov.File)
+		return t, fmt.Sprintf("override job (file: %s)", ov.File), err
+	}
+	if strings.TrimSpace(ov.Inline) != "" {
+		return ov.Inline, "override job (inline _labnexus.toml)", nil
+	}
+	// Livello 2: default shipped nel profilo.
+	if p.TriggerPromptFile != "" {
+		t, err := input.ParseTriggerPromptFile(inputDir, p.TriggerPromptFile)
+		return t, fmt.Sprintf("default profilo (file: %s)", p.TriggerPromptFile), err
+	}
+	return p.TriggerPrompt, "default profilo (inline)", nil
 }
 
 // checkTokensAgainstContext valuta la stima token vs context_window (FR-6).
@@ -299,7 +360,7 @@ func isStdoutTTY() bool {
 // io.MultiWriter per scrivere il logger contemporaneamente su stderr + log file.
 // Body streaming live (FR-35): i token chunks vanno raw su stderr (TTY) +
 // sempre al log file.
-func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, log *runlog.Logger) (*Result, error) {
+func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, triggerSource string, log *runlog.Logger) (*Result, error) {
 	prov, err := provider.Select(cfg.ProviderOverride, os.Getenv("LABNEXUS_PROVIDER"), p.Provider)
 	if err != nil {
 		return nil, err
@@ -310,6 +371,9 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	if logFile != nil {
 		defer logFile.Close()
 	}
+	// Audit trail (NFR-11): dichiara nel .log quale sorgente di trigger è stata
+	// risolta (override job vs default profilo), così l'output è tracciabile.
+	multiLog.Info("trigger risolto da: %s", triggerSource)
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
 	logProviderRequest(multiLog, prov, p)

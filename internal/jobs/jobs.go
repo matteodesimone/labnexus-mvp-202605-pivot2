@@ -14,6 +14,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/labnexus/labnexus/internal/profile"
 )
 
 // Job rappresenta una cartella di lavoro auto-discovered in `lavori/`.
@@ -21,7 +23,8 @@ type Job struct {
 	Name              string // nome del job (default: nome cartella)
 	Path              string // path assoluto della cartella `lavori/<X>/`
 	Profile           string // nome profile da `_labnexus.toml` o fallback convention
-	TriggerPromptFile string // opzionale, path relativo a Path
+	TriggerPrompt     string // opzionale, override trigger inline (XOR con TriggerPromptFile)
+	TriggerPromptFile string // opzionale, override trigger da file, path relativo a Path
 	InputDir          string // = Path (la cartella stessa è l'input)
 	OutputDir         string // = Path + "/output" (default)
 	Source            string // "metadata" | "convention" — come è stato risolto
@@ -56,6 +59,7 @@ var conventionRegex = regexp.MustCompile(`Profilo\s+(.+?)\s*$`)
 // metadataDoc è la rappresentazione TOML del file `_labnexus.toml`.
 type metadataDoc struct {
 	Profile           string          `toml:"profile"`
+	TriggerPrompt     string          `toml:"trigger_prompt"`
 	TriggerPromptFile string          `toml:"trigger_prompt_file"`
 	PDF               metadataPDFDoc  `toml:"pdf"`
 	Docx              metadataDocxDoc `toml:"docx"`
@@ -77,6 +81,7 @@ type metadataDocxDoc struct {
 // allargare la signature di LoadMetadata.
 type Metadata struct {
 	Profile           string
+	TriggerPrompt     string
 	TriggerPromptFile string
 	// PDFEnabled override per-capability del default [pdf] master.
 	// nil = non setted; risolto via config.ResolvePDFEnabled.
@@ -131,7 +136,7 @@ func resolveJob(lavoriDir, folderName, realLavoriDir string) *Job {
 		if err != nil {
 			return nil // metadata malformato → skip
 		}
-		j := newJob(folderName, jobPath, m.Profile, m.TriggerPromptFile, "metadata")
+		j := newJob(folderName, jobPath, m.Profile, m.TriggerPrompt, m.TriggerPromptFile, "metadata")
 		j.PDFEnabled = m.PDFEnabled
 		j.DocxEnabled = m.DocxEnabled
 		return j
@@ -141,7 +146,7 @@ func resolveJob(lavoriDir, folderName, realLavoriDir string) *Job {
 	if matches == nil {
 		return nil // né metadata né convention → skip
 	}
-	return newJob(folderName, jobPath, strings.TrimSpace(matches[1]), "", "convention")
+	return newJob(folderName, jobPath, strings.TrimSpace(matches[1]), "", "", "convention")
 }
 
 // isWithin verifica che il path resolto via EvalSymlinks resti dentro
@@ -162,11 +167,12 @@ func isWithin(jobPath, realLavoriDir string) bool {
 }
 
 // newJob crea un Job con i campi di default popolati.
-func newJob(folderName, jobPath, profile, triggerFile, source string) *Job {
+func newJob(folderName, jobPath, profileName, triggerInline, triggerFile, source string) *Job {
 	return &Job{
 		Name:              folderName,
 		Path:              jobPath,
-		Profile:           profile,
+		Profile:           profileName,
+		TriggerPrompt:     triggerInline,
 		TriggerPromptFile: triggerFile,
 		InputDir:          jobPath,
 		OutputDir:         filepath.Join(jobPath, "output"),
@@ -189,6 +195,29 @@ func Resolve(jobs []*Job, name string) *Job {
 	return nil
 }
 
+// WriteMetadata scrive un `_labnexus.toml` in dir (usato dal wizard `labnexus
+// init`). Se promptFile != "" aggiunge `trigger_prompt_file` (override del
+// prompt di default del profilo); altrimenti il job eredita il prompt del
+// profilo. Path-safety su promptFile coerente con LoadMetadata.
+func WriteMetadata(dir, profileName, promptFile string) error {
+	if strings.TrimSpace(profileName) == "" {
+		return fmt.Errorf("jobs: WriteMetadata profile vuoto")
+	}
+	if pf := strings.TrimSpace(promptFile); pf != "" {
+		if strings.Contains(pf, "..") || filepath.IsAbs(pf) {
+			return fmt.Errorf("jobs: trigger_prompt_file %q non consentito (path relativo senza '..')", pf)
+		}
+	}
+	var b strings.Builder
+	b.WriteString("# Metadata Sprint 1.5.C — auto-discovery via labnexus jobs.\n")
+	b.WriteString("# Generato da `labnexus init`. Per cambiare profilo, edita la riga 'profile'.\n")
+	fmt.Fprintf(&b, "profile = %q\n", profileName)
+	if pf := strings.TrimSpace(promptFile); pf != "" {
+		fmt.Fprintf(&b, "trigger_prompt_file = %q\n", pf)
+	}
+	return os.WriteFile(filepath.Join(dir, metadataFileName), []byte(b.String()), 0o644)
+}
+
 // LoadMetadata legge un singolo `_labnexus.toml` e ritorna *Metadata.
 // Errore se il file non esiste o il TOML è malformato.
 //
@@ -208,7 +237,18 @@ func LoadMetadata(path string) (*Metadata, error) {
 	if strings.TrimSpace(doc.Profile) == "" {
 		return nil, fmt.Errorf("jobs: metadata %q manca campo 'profile'", path)
 	}
-	if doc.TriggerPromptFile != "" {
+	hasInline := strings.TrimSpace(doc.TriggerPrompt) != ""
+	hasFile := strings.TrimSpace(doc.TriggerPromptFile) != ""
+	// XOR override del job: trigger_prompt e trigger_prompt_file mutuamente
+	// esclusivi, simmetrico al profilo (profile.validateTrigger). Entrambi
+	// assenti è valido: il job eredita il default del profilo.
+	if hasInline && hasFile {
+		return nil, fmt.Errorf("jobs: metadata %q ha trigger_prompt e trigger_prompt_file insieme — mutually exclusive (specifica uno solo dei due)", path)
+	}
+	if hasInline && len(doc.TriggerPrompt) < profile.MinTriggerLen {
+		return nil, fmt.Errorf("jobs: metadata %q ha trigger_prompt troppo corto (%d caratteri), almeno %d richiesti", path, len(doc.TriggerPrompt), profile.MinTriggerLen)
+	}
+	if hasFile {
 		if strings.Contains(doc.TriggerPromptFile, "..") {
 			return nil, fmt.Errorf("jobs: metadata %q ha trigger_prompt_file %q non consentito (contiene '..')", path, doc.TriggerPromptFile)
 		}
@@ -218,6 +258,7 @@ func LoadMetadata(path string) (*Metadata, error) {
 	}
 	return &Metadata{
 		Profile:           doc.Profile,
+		TriggerPrompt:     doc.TriggerPrompt,
 		TriggerPromptFile: doc.TriggerPromptFile,
 		PDFEnabled:        doc.PDF.Enabled,
 		DocxEnabled:       doc.Docx.Enabled,

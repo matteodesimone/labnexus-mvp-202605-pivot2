@@ -1,5 +1,6 @@
 // labnexus CLI — esegue una capability ispettiva del modello AICertus chiamando
-// Qwen 3 in locale via Ollama, oppure EUrouter come canale di sviluppo.
+// Qwen 3 via EUrouter (cloud EU-GDPR, default deliverable Sprint 1.5+) oppure
+// Ollama in locale (provider opzionale per utenti con hardware adeguato).
 package main
 
 import (
@@ -84,10 +85,10 @@ func buildRoot() *cobra.Command {
 
 	root := &cobra.Command{
 		Use:   "labnexus",
-		Short: "Eseguibile LabNexus — capability ispettive AICertus via Qwen locale (FR-1).",
-		Long:  "labnexus esegue una capability ispettiva alla volta del modello AICertus chiamando Qwen 3 in locale via Ollama (o EUrouter come canale di sviluppo). Senza argomenti apre una TUI sequenziale (profilo → input → output).",
+		Short: "Eseguibile LabNexus — capability ispettive AICertus via Qwen su EUrouter cloud EU-GDPR (FR-1).",
+		Long:  "labnexus esegue una capability ispettiva alla volta del modello AICertus chiamando Qwen 3 via EUrouter (cloud EU-GDPR, default Sprint 1.5+) o, in opzione, Ollama in locale. Senza argomenti apre una TUI sequenziale (profilo → input → output).",
 		// Default action: nessun subcommand → TUI o argomento posizionale come input
-		RunE: rootRunE,
+		RunE:          rootRunE,
 		SilenceUsage:  true,
 		SilenceErrors: false,
 	}
@@ -96,7 +97,7 @@ func buildRoot() *cobra.Command {
 	root.PersistentFlags().String("provider", "", "override del provider del profilo: ollama|eurouter (FR-12)")
 	root.PersistentFlags().String("config", defaultConfigPath, "path al labnexus.config.toml master (FR-11; default: <delivery-root>/labnexus.config.toml)")
 	root.PersistentFlags().String("lavori-dir", defaultLavoriDir, "cartella con i lavori Denis auto-discovered (FR-25; default: <delivery-root>/lavori)")
-	root.AddCommand(newRunCmd(), newListCmd(), newDescribeCmd(), newCheckCmd(), newValidateCmd(), newJobsCmd())
+	root.AddCommand(newRunCmd(), newListCmd(), newDescribeCmd(), newCheckCmd(), newValidateCmd(), newJobsCmd(), newInitCmd())
 	return root
 }
 
@@ -276,10 +277,13 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 		pdfCLI = &v
 	}
 	var pdfJob, docxJob *bool
+	var triggerJobInline, triggerJobFile string
 	if jobName != "" {
 		if j, err := resolveJobOrError(cmd, jobName); err == nil {
 			pdfJob = j.PDFEnabled
 			docxJob = j.DocxEnabled
+			triggerJobInline = j.TriggerPrompt
+			triggerJobFile = j.TriggerPromptFile
 		}
 	}
 	var docxCLI *bool
@@ -288,18 +292,20 @@ func runRunE(cmd *cobra.Command, _ []string) error {
 		docxCLI = &v
 	}
 	res, err := runner.Run(runner.Config{
-		ProfileName:      profileName,
-		InputDir:         in,
-		OutputDir:        out,
-		ProviderOverride: providerOverride,
-		ProfiliDir:       profiliDir,
-		KbDir:            kbDir,
-		ConfigPath:       resolveConfigPath(cmd),
-		PDFEnabledCLI:    pdfCLI,
-		PDFEnabledJob:    pdfJob,
-		DocxEnabledCLI:   docxCLI,
-		DocxEnabledJob:   docxJob,
-		Capability:       jobName,
+		ProfileName:          profileName,
+		InputDir:             in,
+		OutputDir:            out,
+		ProviderOverride:     providerOverride,
+		ProfiliDir:           profiliDir,
+		KbDir:                kbDir,
+		ConfigPath:           resolveConfigPath(cmd),
+		PDFEnabledCLI:        pdfCLI,
+		PDFEnabledJob:        pdfJob,
+		DocxEnabledCLI:       docxCLI,
+		DocxEnabledJob:       docxJob,
+		Capability:           jobName,
+		TriggerPromptJob:     triggerJobInline,
+		TriggerPromptFileJob: triggerJobFile,
 	})
 	if err != nil {
 		return newExit(classifyError(err), "%v", err)
@@ -446,6 +452,104 @@ func newCheckCmd() *cobra.Command {
 	cmd.Flags().Bool("show-prompt", false, "stampa il prompt composto su stdout (⚠ contiene contenuti dei kb_files + input, potenziali PII; in non-TTY emette warning su stderr)")
 	_ = cmd.MarkFlagRequired("input")
 	return cmd
+}
+
+// --- init [cartella]: wizard per creare _labnexus.toml ---
+
+// initExitNeedsEdit (exit code 10) segnala che è stato creato un file-prompt da
+// editare PRIMA di eseguire: l'Esegui.command-wizard lo intercetta e si ferma.
+const initExitNeedsEdit = 10
+
+// initPromptTemplate è lo starter NON vuoto scritto quando l'utente sceglie di
+// creare un nuovo prompt: evita un trigger vuoto e guida la scrittura.
+const initPromptTemplate = `TASK: <descrivi qui il compito di questa capability>
+
+INPUT FORNITI:
+- <elenca i file che metti nella cartella>
+
+ATTIVITÀ:
+- <cosa deve fare il modello, passo per passo>
+
+OUTPUT ATTESO (markdown):
+## 1. <prima sezione>
+## 2. <seconda sezione>
+
+VINCOLI:
+- Non inventare dati non presenti negli input.
+- Cita sempre i riferimenti puntuali (norma, documento, codice).
+`
+
+func newInitCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "init [cartella]",
+		Short: "crea interattivamente il _labnexus.toml di una cartella di lavoro (scegli profilo + prompt)",
+		Long:  "init apre un wizard: scegli la capability (profilo) e se usare il prompt predefinito del profilo o crearne uno nuovo da file. Scrive il _labnexus.toml nella cartella indicata (default: cartella corrente). Pensato per il flusso 'cartella template + doppio click'.",
+		Args:  cobra.MaximumNArgs(1),
+		// Messaggi gestiti internamente; evita il doppio 'Error:' di cobra (serve
+		// per l'exit code 10 'prompt da editare' che non è un vero errore).
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		RunE:          initRunE,
+	}
+	return cmd
+}
+
+func initRunE(cmd *cobra.Command, args []string) error {
+	profiliDir, _, _ := resolveDirs(cmd)
+	workDir := "."
+	if len(args) == 1 {
+		workDir = args[0]
+	}
+	absWork, err := filepath.Abs(strings.TrimSpace(workDir))
+	if err != nil {
+		return initFail(2, "cartella %q non risolvibile: %v", workDir, err)
+	}
+	if fi, statErr := os.Stat(absWork); statErr != nil || !fi.IsDir() {
+		return initFail(2, "%q non è una cartella esistente", workDir)
+	}
+	metaPath := filepath.Join(absWork, "_labnexus.toml")
+	_, statErr := os.Stat(metaPath)
+	exists := statErr == nil
+
+	choice, err := tui.RunInit(profiliDir, exists)
+	if err != nil {
+		if errors.Is(err, tui.ErrInitCancelled) {
+			return initFail(2, "init annullato.")
+		}
+		if errors.Is(err, tui.ErrNonTTY) {
+			return initFail(2, "labnexus init richiede un terminale interattivo: lancialo da Terminal o con doppio click su Esegui.command (cartella template).")
+		}
+		return initFail(2, "%v", err)
+	}
+
+	if choice.NewPromptFile {
+		const promptName = "Prompt_INPUT.txt"
+		promptPath := filepath.Join(absWork, promptName)
+		if _, e := os.Stat(promptPath); e != nil { // non sovrascrivere un prompt esistente
+			if werr := os.WriteFile(promptPath, []byte(initPromptTemplate), 0o644); werr != nil {
+				return initFail(1, "impossibile creare %q: %v", promptName, werr)
+			}
+		}
+		if werr := jobs.WriteMetadata(absWork, choice.Profile, promptName); werr != nil {
+			return initFail(1, "impossibile scrivere _labnexus.toml: %v", werr)
+		}
+		fmt.Printf("\nCreato _labnexus.toml (profilo %q) e %s.\n", choice.Profile, promptName)
+		fmt.Printf("Apri %s, scrivi le istruzioni del task, salva, poi rilancia.\n", promptName)
+		return &exitError{Code: initExitNeedsEdit, Err: errors.New("prompt da editare")}
+	}
+
+	if werr := jobs.WriteMetadata(absWork, choice.Profile, ""); werr != nil {
+		return initFail(1, "impossibile scrivere _labnexus.toml: %v", werr)
+	}
+	fmt.Printf("\nCreato _labnexus.toml (profilo %q, prompt predefinito del profilo).\n", choice.Profile)
+	return nil
+}
+
+// initFail stampa il messaggio su stderr (cobra è silenziato sul comando init) e
+// ritorna l'exit code.
+func initFail(code int, format string, a ...interface{}) error {
+	fmt.Fprintf(os.Stderr, "ERRORE: "+format+"\n", a...)
+	return newExit(code, format, a...)
 }
 
 // --- validate <profile> ---

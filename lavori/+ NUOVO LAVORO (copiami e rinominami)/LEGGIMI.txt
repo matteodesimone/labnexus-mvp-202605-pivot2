@@ -23,10 +23,14 @@ NON serve il Terminale: segui questi 4 passi nel Finder.
      - quale capability (profilo) usare;
      - se usare il prompt predefinito del profilo, oppure crearne uno tuo.
 
-   • Se scegli "prompt predefinito": parte subito l'elaborazione.
-   • Se scegli "nuovo prompt": viene creato un file "Prompt_INPUT.rtf".
-     Aprilo con Word/Pages/TextEdit, scrivi le istruzioni del task, salva,
-     e rilancia "Esegui.command": a quel punto parte l'elaborazione.
+   L'assistente CREA LA CONFIGURAZIONE E SI FERMA (non esegue ancora).
+   • Se hai scelto "nuovo prompt": viene creato "Prompt_INPUT.rtf". Aprilo
+     con Word/Pages/TextEdit, scrivi le istruzioni del task e salva.
+
+5) DOPPIO CLICK DI NUOVO su "Esegui.command"
+   Questa volta parte l'elaborazione vera e propria.
+
+   In breve: primo click = configura, secondo click = esegui.
 
 L'output finisce nella sottocartella "output/" della tua copia.
 

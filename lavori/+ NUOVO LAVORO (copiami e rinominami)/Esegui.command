@@ -52,21 +52,31 @@ if [ -f "labnexus.config.toml" ] && grep -qE '^eurouter_api_key\s*=\s*""\s*$' la
 fi
 
 # Se manca il metadata, lancia il wizard interattivo.
+# Prima esecuzione: se manca il metadata, lancia il wizard e POI TERMINA.
+# La configurazione (toml + eventuale prompt) viene creata; per avviare
+# davvero l'elaborazione serve un secondo doppio click. Flusso prevedibile:
+# 1° click = configura, 2° click = esegui.
 if [ ! -f "$DIR/_labnexus.toml" ]; then
   code=0
   ./labnexus init "$DIR" --profiles-dir profili || code=$?
-  if [ "$code" -eq 10 ]; then
-    echo ""
-    echo "Hai creato un nuovo prompt: aprilo, scrivi le istruzioni, salva,"
-    echo "poi rilancia questo Esegui.command."
-    echo ""
-    read -n 1 -s -r -p "Premi un tasto per chiudere la finestra..."
-    exit 0
-  fi
-  if [ "$code" -ne 0 ]; then
+  # code 0 = toml creato (prompt predefinito); 10 = toml creato + prompt da
+  # editare; altro = errore/annullato (init ha già stampato il messaggio).
+  if [ "$code" -ne 0 ] && [ "$code" -ne 10 ]; then
     read -n 1 -s -r -p "Premi un tasto per chiudere la finestra..."
     exit "$code"
   fi
+  echo ""
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo "  Configurazione creata."
+  if [ "$code" -eq 10 ]; then
+    echo "  Apri il file Prompt_INPUT.rtf, scrivi le istruzioni e salva."
+  fi
+  echo "  Per AVVIARE l'elaborazione, rilancia questo Esegui.command"
+  echo "  (doppio click)."
+  echo "═══════════════════════════════════════════════════════════════════"
+  echo ""
+  read -n 1 -s -r -p "Premi un tasto per chiudere la finestra..."
+  exit 0
 fi
 
 echo ""

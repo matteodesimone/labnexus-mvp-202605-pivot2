@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 
 	"github.com/labnexus/labnexus/internal/config"
+	"github.com/labnexus/labnexus/internal/input"
 	"github.com/labnexus/labnexus/internal/jobs"
 	"github.com/labnexus/labnexus/internal/paths"
 	"github.com/labnexus/labnexus/internal/profile"
@@ -461,13 +462,14 @@ func newCheckCmd() *cobra.Command {
 const initExitNeedsEdit = 10
 
 // initPromptTemplate è lo starter NON vuoto scritto quando l'utente sceglie di
-// creare un nuovo prompt: evita un trigger vuoto e guida la scrittura.
+// creare un nuovo prompt: evita un trigger vuoto e guida la scrittura. ASCII
+// (viene avvolto in RTF da input.WrapPlainAsRTF, vedi initPromptFileName).
 const initPromptTemplate = `TASK: <descrivi qui il compito di questa capability>
 
 INPUT FORNITI:
 - <elenca i file che metti nella cartella>
 
-ATTIVITÀ:
+ISTRUZIONI:
 - <cosa deve fare il modello, passo per passo>
 
 OUTPUT ATTESO (markdown):
@@ -478,6 +480,10 @@ VINCOLI:
 - Non inventare dati non presenti negli input.
 - Cita sempre i riferimenti puntuali (norma, documento, codice).
 `
+
+// initPromptFileName è il file-prompt creato dal wizard: .rtf cosi' Denis lo
+// edita in Word/Pages (rich text), coerente col pattern Prompt_INPUT dei lavori.
+const initPromptFileName = "Prompt_INPUT.rtf"
 
 func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -523,18 +529,18 @@ func initRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if choice.NewPromptFile {
-		const promptName = "Prompt_INPUT.txt"
-		promptPath := filepath.Join(absWork, promptName)
+		promptPath := filepath.Join(absWork, initPromptFileName)
 		if _, e := os.Stat(promptPath); e != nil { // non sovrascrivere un prompt esistente
-			if werr := os.WriteFile(promptPath, []byte(initPromptTemplate), 0o644); werr != nil {
-				return initFail(1, "impossibile creare %q: %v", promptName, werr)
+			rtf := input.WrapPlainAsRTF(initPromptTemplate)
+			if werr := os.WriteFile(promptPath, []byte(rtf), 0o644); werr != nil {
+				return initFail(1, "impossibile creare %q: %v", initPromptFileName, werr)
 			}
 		}
-		if werr := jobs.WriteMetadata(absWork, choice.Profile, promptName); werr != nil {
+		if werr := jobs.WriteMetadata(absWork, choice.Profile, initPromptFileName); werr != nil {
 			return initFail(1, "impossibile scrivere _labnexus.toml: %v", werr)
 		}
-		fmt.Printf("\nCreato _labnexus.toml (profilo %q) e %s.\n", choice.Profile, promptName)
-		fmt.Printf("Apri %s, scrivi le istruzioni del task, salva, poi rilancia.\n", promptName)
+		fmt.Printf("\nCreato _labnexus.toml (profilo %q) e %s.\n", choice.Profile, initPromptFileName)
+		fmt.Printf("Apri %s (Word/Pages/TextEdit), scrivi le istruzioni del task, salva, poi rilancia.\n", initPromptFileName)
 		return &exitError{Code: initExitNeedsEdit, Err: errors.New("prompt da editare")}
 	}
 

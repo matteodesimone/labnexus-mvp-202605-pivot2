@@ -141,7 +141,7 @@ Per una nuova attività su dati nuovi non devi toccare nessun file di configuraz
 3. Metti dentro la copia i tuoi **file dati** (xlsx, docx, pdf, csv…). Non serve il prompt.
 4. **Doppio click su `Esegui.command`** dentro la copia. Un assistente ti chiede:
    - quale **capability** (profilo) usare;
-   - se usare il **prompt predefinito** del profilo (parte subito), oppure **crearne uno nuovo** (viene creato `Prompt_INPUT.txt`: aprilo, scrivi le istruzioni, salva e rilancia).
+   - se usare il **prompt predefinito** del profilo (parte subito), oppure **crearne uno nuovo** (viene creato `Prompt_INPUT.rtf`: aprilo con Word/Pages/TextEdit, scrivi le istruzioni, salva e rilancia).
 
 L'output finisce come sempre nella sottocartella `output/` della tua copia. (Dietro le quinte l'assistente crea il file `_labnexus.toml` per te: non devi più scriverlo a mano.)
 

@@ -24,9 +24,9 @@ NON serve il Terminale: segui questi 4 passi nel Finder.
      - se usare il prompt predefinito del profilo, oppure crearne uno tuo.
 
    • Se scegli "prompt predefinito": parte subito l'elaborazione.
-   • Se scegli "nuovo prompt": viene creato un file "Prompt_INPUT.txt".
-     Aprilo, scrivi le istruzioni del task, salva, e rilancia
-     "Esegui.command": a quel punto parte l'elaborazione.
+   • Se scegli "nuovo prompt": viene creato un file "Prompt_INPUT.rtf".
+     Aprilo con Word/Pages/TextEdit, scrivi le istruzioni del task, salva,
+     e rilancia "Esegui.command": a quel punto parte l'elaborazione.
 
 L'output finisce nella sottocartella "output/" della tua copia.
 

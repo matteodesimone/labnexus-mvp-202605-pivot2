@@ -44,19 +44,58 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità e delle regole definite nei file di system context
-che hai appena letto, esegui ora questo compito specifico.
+TASK: Revisione di un documento del SGQ per allineamento a una 
+norma/documento tecnico aggiornato.
 
-Ti vengono forniti tre file nella cartella di input:
-- un documento del SGQ da revisionare (probabilmente .docx o .md)
-- la versione attualmente in vigore della norma di riferimento (.pdf o .md)
-- la versione nuova della stessa norma (.pdf o .md)
+INPUT FORNITI:
+- Un documento del SGQ del laboratorio (procedura, istruzione 
+  operativa, modulo, manuale)
+- Versione PRECEDENTE del riferimento normativo/tecnico citato
+- Versione VIGENTE del riferimento normativo/tecnico citato
 
-Produci una bozza di revisione del documento allineata alla nuova versione
-della norma. Applica la logica di lettura ispettiva, usa i callout Obsidian
-[!MODIFICA], [!ATTENZIONE], [!ISPETTORE] dove appropriato. Frontmatter YAML
-completo. Tono di senior technical advisor. Non inventare requisiti normativi
-che non sono nei file forniti.
+ATTIVITÀ:
+1. Confronta sistematicamente le due versioni del riferimento.
+2. Identifica ogni differenza rilevante: aggiunte, eliminazioni, 
+   riformulazioni, cambi di requisito.
+3. Per ciascuna differenza, valuta se impatta i contenuti del 
+   documento SGQ allegato.
+4. Produci una BOZZA di revisione del documento SGQ con le 
+   modifiche puntuali necessarie.
+
+OUTPUT ATTESO (markdown):
+
+## 1. Sintesi esecutiva
+Massimo una pagina: cosa cambia tra le due versioni del riferimento, 
+quali sezioni del documento SGQ sono impattate, livello di criticità 
+complessivo.
+
+## 2. Tabella confronto riferimento
+| Sezione del riferimento | Versione precedente | Versione vigente | Impatto sul documento SGQ |
+|---|---|---|---|
+
+## 3. Modifiche puntuali al documento SGQ
+Per ciascuna modifica proposta:
+- **Sezione interessata:** [numero e titolo]
+- **Testo attuale:** [citazione integrale]
+- **Testo proposto:** [riformulazione]
+- **Motivazione normativa:** [punto specifico del riferimento vigente]
+- **Criticità:** Bassa / Media / Alta
+
+## 4. Documenti collegati da aggiornare
+Moduli, registrazioni, riferimenti incrociati richiamati dal 
+documento principale che devono cambiare di conseguenza.
+
+## 5. Azioni propedeutiche alla messa in vigore
+Cose da fare PRIMA di rendere effettiva la nuova revisione: 
+formazione operatori, riesame moduli collegati, comunicazione 
+ad enti di accreditamento se prevista, archiviazione versione 
+superata.
+
+VINCOLI:
+- Non inventare modifiche che non derivano dalla versione vigente.
+- Cita sempre il punto preciso del riferimento (es. "§4.2.1").
+- Mantieni il tono e lo stile del documento SGQ originale.
+- Marca come [DA VERIFICARE] ogni punto su cui hai incertezza.
 """
 
 [output.frontmatter_default]

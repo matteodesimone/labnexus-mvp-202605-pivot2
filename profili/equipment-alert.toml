@@ -30,14 +30,77 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità di system context, esegui questo compito.
-Input: scheda apparecchiatura (con metodi di prova associati) + descrizione
-evento (es. taratura rientrata con NC).
-Produci un Equipment Alert del CoWork KB sezione 15.3: ESATTAMENTE 5 sezioni
-numerate "## 1." → "## 5." nell'ordine — Stato attuale, Rischio tecnico sui
-metodi (cita i codici PCM dalla scheda, ragionamento causale "poiché …
-quindi …"), Azioni proposte, Bozza email al fornitore, Checklist al rientro.
-NON inventare metodi non presenti nella scheda. Frontmatter YAML completo.
+TASK: Analisi dell'impatto tecnico di un evento metrologico 
+critico su un'apparecchiatura del laboratorio (scadenza taratura 
+imminente, certificato di taratura rientrato con NC, guasto, 
+controllo intermedio fuori soglia) sui metodi di prova associati.
+
+INPUT FORNITI:
+- Scheda dell'apparecchiatura: codice, descrizione, ultima 
+  taratura, prossima scadenza, fornitore della taratura, 
+  metodi di prova associati, range di lavoro
+- Descrizione testuale dell'evento scatenante (cosa è successo, 
+  quando, su quale parametro, con quale entità)
+
+ATTIVITÀ:
+Ragionamento causale: se questo strumento è in questo stato, 
+allora questi metodi sono coinvolti, allora questi rapporti di 
+prova potrebbero dover essere congelati / verificati / annullati.
+
+OUTPUT ATTESO (markdown):
+
+# Equipment Alert — [Codice strumento]
+
+## Stato attuale dello strumento
+- **Codice e descrizione:** [...]
+- **Evento:** [sintesi 1 riga]
+- **Data evento:** [...]
+- **Severità:** Bassa / Media / Alta
+- **Stato operativo proposto:** In uso / In uso con riserva / 
+  Fuori servizio / Quarantena
+
+## Rischio tecnico
+Analisi del rischio metrologico:
+- Su quale parametro c'è la deviazione
+- Quale entità rispetto al limite di accettabilità del metodo
+- In che modo influenza i risultati delle prove
+
+## Metodi di prova coinvolti
+Per ciascun metodo associato all'apparecchiatura:
+- **Codice metodo:** [...]
+- **Tipo di influenza:** Diretta / Indiretta / Probabile / Esclusa
+- **Periodo a rischio:** dall'ultima taratura valida a oggi
+- **Numero stimato di prove eseguite nel periodo:** [...]
+- **Azione su rapporti già emessi:** Nessuna / Verifica retrospettiva 
+  / Riemissione / Congelamento
+
+## Azioni immediate proposte
+Lista numerata, con responsabile e tempistica:
+1. [Azione] — entro [data] — responsabile [ruolo]
+2. [...]
+
+## Bozza email al fornitore della taratura
+Email tecnica al fornitore: cosa è successo, cosa serve, in quali 
+tempi, in quale forma (intervento on-site / ritiro / re-taratura).
+
+## Checklist al rientro dello strumento
+Quando lo strumento rientra in servizio, verifiche obbligatorie 
+prima di rimetterlo in routine:
+- [ ] Verifica certificato di taratura aggiornato
+- [ ] Controllo intermedio post-intervento
+- [ ] Aggiornamento scheda apparecchiatura
+- [ ] Comunicazione formale al laboratorio
+- [ ] Eventuale riqualifica metodi associati
+
+VINCOLI:
+- Ragionamento causale esplicito: ogni conclusione deve avere 
+  il "perché" tecnico-metrologico.
+- Se un'informazione manca per decidere, scrivi [DATO MANCANTE] 
+  e indica cosa servirebbe.
+- L'email al fornitore deve essere tecnica, non commerciale: 
+  parla di accuratezza, ripetibilità, riferibilità.
+- Nessun allarmismo: severità "Alta" si usa solo quando 
+  effettivamente i risultati emessi sono a rischio dimostrabile.
 """
 
 [output.frontmatter_default]

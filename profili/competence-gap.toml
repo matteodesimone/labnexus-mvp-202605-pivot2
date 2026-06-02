@@ -32,17 +32,85 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità di system context, esegui questo compito.
-Input: matrice competenze del laboratorio (CSV con tecnici × metodi/procedure
-e valori autorizzato/non-autorizzato/in-qualifica) + descrizione di una
-procedura o metodo NUOVO da introdurre.
-Produci un Competence Gap Report in 4 sezioni heading "## " coerenti col
-CompetenceAgent (CoWork KB sez. 7.7): (1) tecnici autorizzabili in priorità
-per competenze adiacenti già presenti, (2) tecnici non autorizzabili / gap
-ampio, (3) piano formazione con tempistiche concrete (date ISO o Q-YYYY o
-settimane/mesi), (4) autorizzazioni da rilasciare o aggiornare in matrice.
-Cita SOLO nomi tecnici presenti nella matrice. NON inventare persone.
-Tono ispettivo, frontmatter YAML completo.
+TASK: Analisi del gap di competenze del personale rispetto a una 
+nuova procedura o metodo che entra in scope nel laboratorio, 
+sulla base della matrice competenze in vigore.
+
+INPUT FORNITI:
+- Matrice competenze del laboratorio: righe = persone, 
+  colonne = attività/metodi/competenze, celle = livello di 
+  autorizzazione (qualificato, in formazione, non autorizzato, 
+  scaduto)
+- Descrizione della procedura o del metodo nuovo che richiede 
+  competenze specifiche: cosa fa, su quale matrice, con quali 
+  apparecchiature, quali abilità tecniche e ispettive sono 
+  necessarie
+
+ATTIVITÀ:
+Leggere la matrice come una griglia di dati strutturati e 
+collegarla in modo logico ai requisiti della nuova procedura. 
+Identificare chi è già pronto, chi ha lacune, chi è scaduto, 
+cosa va fatto.
+
+OUTPUT ATTESO (markdown):
+
+# Gap di Competenze — [Nome nuova procedura/metodo]
+
+## Inquadramento
+- **Procedura/metodo nuovo:** [titolo e codice]
+- **Data di entrata in vigore prevista:** [...]
+- **Numero minimo di operatori qualificati richiesti:** [...]
+- **Competenze necessarie:** [lista 3-7 voci]
+
+## Mappa stato attuale del personale
+Tabella di sintesi sulla matrice competenze:
+
+| Operatore | Competenza 1 | Competenza 2 | ... | Stato complessivo |
+|---|---|---|---|---|
+
+Stati possibili: ✅ Pronto / 🟡 Parzialmente qualificato / 
+🔴 Non qualificato / ⚠️ Qualifica scaduta
+
+## Gap rilevati
+Per ciascun operatore con lacune:
+- **Operatore:** [identificativo]
+- **Competenze mancanti:** [lista]
+- **Tipo di gap:** Mai formato / Formato ma non qualificato / 
+  Qualifica scaduta / Necessario aggiornamento
+- **Criticità:** Alta (impedisce attivazione metodo) / 
+  Media (riduce ridondanza) / Bassa (utile ma non obbligatorio)
+
+## Piano formazione proposto
+Per ciascun gap critico:
+- **Operatore + competenza:** [...]
+- **Azione formativa:** training teorico / affiancamento / 
+  re-test pratico / verifica qualifica
+- **Erogata da:** [ruolo interno o esterno]
+- **Tempistica:** [data inizio — data qualifica attesa]
+- **Evidenza di chiusura:** [test, scheda qualifica, modulo 
+  di registrazione]
+
+## Autorizzazioni da rilasciare / aggiornare
+Lista azioni amministrative:
+- Aggiornamento della matrice competenze
+- Firma delle schede di qualifica operatore
+- Comunicazione al personale interessato
+- Archiviazione delle evidenze formative
+
+## Rischio operativo nel periodo transitorio
+Se la nuova procedura entra in vigore prima che tutte le 
+qualifiche siano completate:
+- Numero di operatori pronti il giorno di entrata in vigore: [N]
+- Sufficiente per la routine? Sì / No / Con limitazioni
+- Piano di contingenza: [descrizione]
+
+VINCOLI:
+- Leggi la matrice come fonte di verità: non inventare 
+  qualificazioni non presenti.
+- Distingui chiaramente tra "qualifica scaduta" e "mai formato" — 
+  sono gap di natura diversa.
+- Sii prudente: nei laboratori accreditati, un operatore non 
+  qualificato che esegue una prova è una NC grave.
 """
 
 [output.frontmatter_default]

@@ -25,22 +25,81 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità e delle regole definite nei file di system context
-che hai appena letto, esegui ora questo compito specifico.
+TASK: Gestione rilievi di una visita ispettiva — produzione di un 
+piano strutturato (CAPA Pack) per ciascun rilievo.
 
-Ti viene fornito un file nella cartella di input: un CSV con la lista dei rilievi
-emessi a un audit Accredia. Le colonne tipiche sono: codice rilievo, tipologia
-(NC | Osservazione | Commento), sezione normativa, testo del rilievo, eventuali note.
+INPUT FORNITO:
+Lista di rilievi sollevati durante una visita ispettiva.
+Ogni rilievo ha: codice identificativo, tipologia 
+(Non Conformità / Osservazione / Commento), punto della norma 
+citato, testo descrittivo del rilievo.
 
-Per ogni rilievo del CSV produci un blocco CAPA Pack secondo il template
-definito nel CoWork KB sezione 15.2. Ogni blocco deve riportare:
-- meccanismo (cosa è successo nel processo)
-- estensione (perimetro impattato)
-- efficacia (come verifichiamo che la correzione/azione regge)
-- esplicitamente: basta una correzione oppure serve anche una azione correttiva?
+ATTIVITÀ:
+Per CIASCUN rilievo in input, produci un piano di gestione 
+articolato sulla triade:
 
-Tono ispettivo, no checklist astratte. Non inventare codici di sezioni che non
-sono nei dati di input. Frontmatter YAML completo. Output markdown.
+  MECCANISMO → ESTENSIONE → EFFICACIA
+
+Valuta caso per caso se:
+- È sufficiente una CORREZIONE puntuale (sistemo il singolo caso)
+- Serve anche un'AZIONE CORRETTIVA (rimuovo la causa radice)
+- È necessario un piano di VERIFICA DI EFFICACIA (verifica che 
+  non si ripeta)
+
+OUTPUT ATTESO (markdown), per ciascun rilievo:
+
+## Rilievo [codice] — [tipologia]
+
+### Inquadramento
+- **Sezione norma citata:** [punto della norma]
+- **Testo del rilievo:** [citazione integrale]
+- **Severità interpretata:** Bassa / Media / Alta
+- **Natura:** Caso isolato / Indizio di problema sistemico
+
+### Meccanismo (causa radice)
+Analisi della causa profonda, non superficiale. 
+Distinguere "sintomo" da "causa". Risalire ai fattori sistemici 
+(processo, formazione, documentazione, tecnologia).
+
+### Correzione (azione immediata sul caso)
+- Cosa fare nello specifico
+- Entro quando
+- Chi è responsabile
+- Quale evidenza viene prodotta a chiusura
+
+### Azione correttiva (se necessaria)
+Da attivare quando la causa è sistemica o c'è rischio di ripetizione.
+- Modifiche documentali necessarie
+- Formazione del personale
+- Modifiche di processo o di responsabilità
+
+### Estensione
+Dove altro nel SGQ potrebbe manifestarsi lo stesso problema?
+Lista delle aree, dei documenti, dei processi da verificare in 
+parallelo per accertarsi che il problema non sia più diffuso.
+
+### Verifica di efficacia
+- **Quando:** tempistica della verifica
+- **Come:** audit interno mirato / monitoraggio KPI / verifica 
+  documentale / re-test pratico
+- **Criterio di chiusura:** cosa deve essere oggettivamente vero 
+  per dichiarare chiuso il rilievo
+
+### Tempistica complessiva
+- Correzione: entro X giorni
+- Azione correttiva: entro X giorni  
+- Verifica efficacia: a X mesi
+
+---
+
+VINCOLI:
+- Non inventare informazioni non presenti nell'input.
+- Se manca un dato per una risposta solida, scrivi [DATO MANCANTE] 
+  e specifica cosa servirebbe per completare l'analisi.
+- Decidi e motiva se la sola correzione basta o se serve azione 
+  correttiva: non lasciare la decisione al lettore.
+- Evita formule difensive ("potrebbe", "in alcuni casi"). 
+  Sii diretto.
 """
 
 [output.frontmatter_default]

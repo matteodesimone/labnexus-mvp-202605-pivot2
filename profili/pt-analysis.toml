@@ -46,16 +46,102 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità di system context, esegui questo compito.
-Input: risultati PT con z-score (CSV) + elenco metodi del laboratorio (md)
-+ idealmente storico 2-3 anni (CSV) per trend.
-Produci un PT Investigation Pack in ESATTAMENTE 4 sezioni numerate
-"## 1." → "## 4." nell'ordine: (1) riassunto esecutivo, (2) classificazione
-rischio per metodo con livelli "alto" / "medio" / "basso", (3) trend storico
-per i metodi peggiori (collegamento ai 2-3 anni precedenti se disponibili),
-(4) azioni immediate per z-score fuori soglia (|z|>2 = questionabile, |z|>3
-= non soddisfacente). Cita SOLO codici PT presenti nei risultati e SOLO
-codici metodo presenti nell'elenco. NON inventare codici. Tono ispettivo.
+TASK: Analisi dei risultati di prove valutative interlaboratorio 
+(PT) condotte dal laboratorio, con classificazione del rischio 
+per metodo e proposta di azioni.
+
+INPUT FORNITI:
+- Risultati delle campagne PT condotte: per ogni partecipazione, 
+  matrice testata, metodo applicato, valore atteso (consenso), 
+  valore ottenuto dal laboratorio, z-score calcolato
+- Storico delle partecipazioni PT degli anni precedenti sugli 
+  stessi schemi (idealmente 2-3 anni), per analisi di trend
+- Elenco dei metodi accreditati del laboratorio con relativa 
+  matrice di applicazione
+
+ATTIVITÀ:
+1. Riassumere lo stato di ciascuna partecipazione PT.
+2. Classificare il rischio per metodo sulla base degli z-score 
+   ottenuti e del loro andamento storico.
+3. Identificare trend significativi (deriva sistematica, 
+   peggioramento, miglioramento dopo azione).
+4. Proporre azioni immediate per gli z-score fuori soglia.
+
+CLASSIFICAZIONE z-score (criteri ISO 13528):
+- |z| ≤ 2,0  → Soddisfacente
+- 2,0 < |z| < 3,0  → Questionable (warning)
+- |z| ≥ 3,0  → Unsatisfactory (action signal)
+
+OUTPUT ATTESO (markdown):
+
+# Analisi PT — Periodo [periodo coperto]
+
+## 1. Sintesi esecutiva
+Numero di partecipazioni nel periodo, distribuzione degli esiti, 
+metodi più critici, metodi più solidi.
+
+## 2. Risultati per campagna
+Tabella riassuntiva:
+
+| Campagna | Matrice | Metodo | Valore atteso | Valore ottenuto | z-score | Esito |
+|---|---|---|---|---|---|---|
+
+## 3. Analisi per metodo
+
+### Metodo [codice]
+- **Numero partecipazioni nel periodo:** [N]
+- **Distribuzione z-score:** [media, range]
+- **Esiti aggregati:** [X soddisfacenti / Y questionable / Z unsatisfactory]
+- **Trend storico (se disponibile):** stabile / in miglioramento / 
+  in peggioramento / oscillante
+- **Classificazione rischio del metodo:** Verde / Giallo / Rosso
+
+[Ripetere per ciascun metodo]
+
+## 4. Trend significativi
+Pattern emergenti dal confronto storico:
+- Eventuale deriva sistematica (es. z-score positivi crescenti → 
+  possibile bias strumentale o di calibrazione)
+- Eventuale peggioramento dopo cambi (operatore, strumento, lotto 
+  di reagente)
+- Eventuale miglioramento dopo azioni correttive precedenti
+
+## 5. Azioni immediate per esiti fuori soglia
+Per ogni z-score |z| ≥ 2,0:
+- **Campagna + metodo:** [...]
+- **z-score:** [...]
+- **Possibile causa tecnica:** [analisi prudente: bias 
+  strumentale / errore di procedura / problema reagenti / 
+  formazione operatore / variabilità matrice]
+- **Azione proposta:** [riesame procedura / re-taratura strumento 
+  / re-training operatore / cambio fornitore reagenti / 
+  riesame metodo]
+- **Tempistica:** [...]
+- **Verifica di efficacia:** [come si verifica che l'azione 
+  ha risolto, idealmente la PT successiva]
+
+## 6. Implicazioni sui rapporti di prova emessi
+Per metodi con esiti unsatisfactory:
+- Periodo dell'anno coinvolto
+- Stima delle prove eseguite nel periodo
+- Azione su rapporti già emessi: nessuna / verifica retrospettiva 
+  / comunicazione cliente
+
+## 7. Proposta per il prossimo anno
+- Schemi PT da ripetere
+- Schemi PT nuovi da introdurre per coprire metodi non ancora 
+  testati o per ridondanza
+- Frequenza partecipazione consigliata per metodo
+
+VINCOLI:
+- I calcoli aritmetici devono essere ESATTI. Se hai dubbi, 
+  scrivi [VERIFICA NUMERICA].
+- Non interpretare cause tecniche come fossero certe: usa 
+  "possibile" / "probabile" quando ragionando sulle cause.
+- Non confondere "trend reale" con "fluttuazione naturale": 
+  servono almeno 3 punti dati per parlare di trend.
+- Le azioni proposte devono essere proporzionate: un singolo 
+  questionable non giustifica una revisione completa del metodo.
 """
 
 [output.frontmatter_default]

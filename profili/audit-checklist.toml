@@ -59,14 +59,73 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità di system context, esegui questo compito.
-Input: risk register del laboratorio (CSV con voci di rischio per area ISO
-17025) e una descrizione di scope d'audit (md).
-Produci una checklist d'audit operativa: tra 15 e 30 domande ispettive,
-raggruppate in 3-6 aree (heading "### Area …") coerenti con lo scope.
-Per OGNI area indica i "campioni documentali" da richiedere e il "livello
-di rischio" ereditato dal risk register. Le domande devono tradurre rischi
-specifici, non essere generiche. Tono ispettivo. Frontmatter YAML completo.
+TASK: Generazione di una checklist operativa per un audit interno 
+mirato, costruita a partire dal registro rischi del laboratorio e 
+dallo scope specifico dell'audit pianificato.
+
+INPUT FORNITI:
+- Registro dei rischi del laboratorio (risk register): elenco dei 
+  rischi identificati con descrizione, probabilità, impatto, 
+  livello, eventuali azioni di mitigazione in corso
+- Descrizione dello scope dell'audit: area / processo / sezione 
+  della norma su cui l'audit è focalizzato, periodo coperto, 
+  auditor e auditati
+
+ATTIVITÀ:
+Costruisci una checklist d'audit non generica, ma costruita sui 
+rischi reali del laboratorio. Tradurre i rischi astratti del risk 
+register in domande ispettive concrete, mirate, che un auditor 
+porrebbe sul campo.
+
+OUTPUT ATTESO (markdown):
+
+# Checklist Audit Interno — [Area/Processo]
+
+## Scope dell'audit
+Sintesi: cosa viene auditato, perché ora, su quali punti della 
+norma, periodo coperto.
+
+## Rischi del registro presi a riferimento
+Lista dei rischi del risk register che lo scope dell'audit copre, 
+con relativo livello. Quelli non coperti vengono dichiarati 
+esplicitamente come fuori scope di questo audit.
+
+## Domande ispettive (raggruppate per area)
+
+### [Area 1 — es. Documentazione]
+1. **Domanda:** [domanda specifica]
+   - **Rischio collegato:** [riferimento al risk register]
+   - **Campioni da verificare:** [tipologia documenti / numero]
+   - **Possibile rilievo anticipato:** [cosa si potrebbe trovare]
+   - **Livello rischio se confermato:** Basso / Medio / Alto
+
+### [Area 2 — es. Apparecchiature]
+[Stessa struttura]
+
+### [Area 3 — es. Competenze]
+[Stessa struttura]
+
+[...continua per ogni area sotto scope]
+
+## Sintesi quantitativa
+- Numero totale di domande: [N]
+- Distribuzione per livello di rischio: [Alto X, Medio Y, Basso Z]
+- Aree con maggiore concentrazione di rischio: [lista]
+
+## Note metodologiche per l'auditor
+- Campionamento suggerito: come selezionare i casi da esaminare
+- Documenti chiave da chiedere prima della sessione sul campo
+- Punti di attenzione critica
+
+VINCOLI:
+- Ogni domanda deve essere collegata a un rischio del registro 
+  oppure a un punto specifico della norma in scope.
+- Tra 15 e 30 domande complessive — né checklist generica troppo 
+  corta, né lista interminabile non gestibile.
+- Le domande devono essere ATTUABILI sul campo: si chiede un 
+  documento, si verifica una registrazione, si osserva una prassi.
+- Non inserire domande "filosofiche" o "di sistema" senza azione 
+  verificabile.
 """
 
 [output.frontmatter_default]

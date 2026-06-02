@@ -36,14 +36,80 @@ kb_files = [
 ]
 
 trigger_prompt = """
-Sulla base della tua identità di system context, esegui questo compito.
-Input: pacchetto annuale di evidenze del laboratorio (NC, audit interni,
-reclami, PT con z-score, apparecchiature, KPI).
-Produci il Management Review Pack del CoWork KB sezione 15.4: markdown con
-esattamente 13 sezioni numerate "## 1." → "## 13." preceduto da una sezione
-"Sintesi iniziale" coerente con le decisioni finali del Pack (sezione 13).
-Tono ispettivo, riferimenti documentali espliciti, no requisiti normativi
-non presenti negli input. Frontmatter YAML completo.
+TASK: Generazione del Pack annuale per il Riesame della Direzione 
+del laboratorio, secondo la struttura della norma ISO/IEC 17025:2018 
+punto 8.9.
+
+INPUT FORNITI:
+- Lista delle Non Conformità dell'anno
+- Esiti degli audit interni dell'anno
+- Reclami clienti dell'anno
+- Risultati delle prove valutative interlaboratorio (PT) con z-score
+- Stato delle apparecchiature critiche (tarature, scadenze, eventi)
+- Indicatori chiave di performance (KPI) dell'anno
+
+ATTIVITÀ:
+Genera un documento completo per il Riesame della Direzione, 
+mantenendo coerenza narrativa dall'inizio alla fine, senza inventare 
+dati non presenti nell'input.
+
+OUTPUT ATTESO (markdown — 13 sezioni nell'ordine):
+
+# Riesame della Direzione — Anno [YYYY]
+
+## 1. Esiti dei precedenti riesami della direzione
+Sintesi azioni decise nel precedente riesame, stato di attuazione.
+
+## 2. Modifiche di fattori interni ed esterni rilevanti
+Cambi normativi, organizzativi, di scopo del laboratorio.
+
+## 3. Soddisfazione dei clienti e reclami
+Analisi quantitativa e qualitativa dei reclami ricevuti, 
+gestione e chiusura.
+
+## 4. Conseguimento degli obiettivi
+Andamento dei KPI rispetto ai target dichiarati.
+
+## 5. Idoneità di politiche e procedure
+Documentazione SGQ ancora adeguata? Quali punti emergono?
+
+## 6. Stato delle azioni di gestione del rischio
+Azioni preventive attivate, rischi nuovi emersi, rischi mitigati.
+
+## 7. Esiti delle attività di audit interno
+Sintesi audit svolti, NC rilevate, azioni intraprese.
+
+## 8. Non conformità e azioni correttive
+Quante NC, di quale tipo, su quali aree, tempi medi di chiusura, 
+NC ricorrenti o sistemiche.
+
+## 9. Esiti dell'assicurazione della validità dei risultati
+PT/ILC: andamento z-score, casi fuori soglia, azioni intraprese, 
+controlli interni di qualità.
+
+## 10. Esiti di valutazioni esterne (visite ACCREDIA, audit clienti)
+Rilievi ricevuti, stato di gestione.
+
+## 11. Adeguatezza delle risorse
+Personale (numero, competenze, formazione), apparecchiature 
+(stato, tarature, sostituzioni necessarie), spazi e ambiente.
+
+## 12. Cambiamenti necessari al SGQ
+Modifiche documentali, procedurali, organizzative da pianificare.
+
+## 13. Decisioni della Direzione e piano annuale successivo
+Decisioni operative, obiettivi e KPI per l'anno successivo, 
+risorse da allocare, scadenze.
+
+VINCOLI:
+- Coerenza narrativa: i numeri della sezione 8 devono coincidere 
+  con quelli citati nella sezione 1 dell'anno successivo.
+- Nessuna allucinazione: se un dato non è nei file di input, 
+  scrivi [DATO NON DISPONIBILE].
+- Tono direzionale: questo documento lo legge la Direzione del 
+  laboratorio, non un tecnico. Sintetico, decisionale.
+- Le decisioni della sezione 13 devono derivare LOGICAMENTE da 
+  quanto emerso nelle sezioni precedenti.
 """
 
 [output.frontmatter_default]

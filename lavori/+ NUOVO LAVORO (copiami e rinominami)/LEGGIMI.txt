@@ -1,0 +1,36 @@
+COME CREARE UN NUOVO LAVORO
+===========================
+
+Questa cartella è un TEMPLATE. Per avviare una nuova attività su dati nuovi
+NON serve il Terminale: segui questi 4 passi nel Finder.
+
+1) COPIA questa cartella
+   Tasto destro sulla cartella "+ NUOVO LAVORO (copiami e rinominami)"
+   → Duplica.
+
+2) RINOMINA la copia
+   Dai un nome che descriva il lavoro, es:
+     "Audit interno marzo 2026"
+   (Un nome diverso per ogni lavoro: serve a non confondere i risultati.)
+
+3) METTI I TUOI FILE DATI dentro la copia
+   Trascina nella cartella i documenti reali da elaborare
+   (xlsx, docx, pdf, csv, ...). NON serve mettere il prompt: lo scegli al
+   passo 4.
+
+4) DOPPIO CLICK su "Esegui.command" dentro la copia
+   Parte un assistente che ti chiede:
+     - quale capability (profilo) usare;
+     - se usare il prompt predefinito del profilo, oppure crearne uno tuo.
+
+   • Se scegli "prompt predefinito": parte subito l'elaborazione.
+   • Se scegli "nuovo prompt": viene creato un file "Prompt_INPUT.txt".
+     Aprilo, scrivi le istruzioni del task, salva, e rilancia
+     "Esegui.command": a quel punto parte l'elaborazione.
+
+L'output finisce nella sottocartella "output/" della tua copia.
+
+Nota: la prima volta macOS può chiedere conferma di sicurezza
+(control-clic → Apri). Se la cartella è su un disco cloud (kDrive, Dropbox,
+OneDrive) ed esce "Permission denied", apri Terminal nella cartella
+principale e lancia:  chmod +x labnexus labnexus.command

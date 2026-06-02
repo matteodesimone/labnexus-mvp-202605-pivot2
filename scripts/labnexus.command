@@ -38,10 +38,39 @@ if [ -f "labnexus.config.toml" ] && grep -qE '^eurouter_api_key\s*=\s*""\s*$' la
   fi
 fi
 
+# Il binary deve esistere accanto al launcher.
+if [ ! -f "./labnexus" ]; then
+  echo ""
+  echo "ERRORE: binary 'labnexus' non trovato accanto a labnexus.command."
+  echo "Verifica che labnexus.command e labnexus siano nella stessa cartella."
+  echo ""
+  read -n 1 -s -r -p "Premi un tasto per chiudere la finestra..."
+  echo ""
+  exit 2
+fi
+
+# Auto-heal del bit eseguibile: i servizi di cloud-sync (kDrive, Dropbox,
+# OneDrive, Google Drive) spesso azzerano il permesso +x sui file sincronizzati,
+# causando "Permission denied" al doppio click. Lo ripristiniamo silenziosamente.
+if [ ! -x "./labnexus" ]; then
+  chmod +x ./labnexus 2>/dev/null
+fi
+if [ ! -x "./labnexus" ]; then
+  echo ""
+  echo "ERRORE: 'labnexus' non è eseguibile e non sono riuscito a ripristinare il"
+  echo "permesso (chmod fallito). Apri Terminal nella cartella e lancia:"
+  echo ""
+  echo "    chmod +x labnexus labnexus.command"
+  echo ""
+  read -n 1 -s -r -p "Premi un tasto per chiudere la finestra..."
+  echo ""
+  exit 2
+fi
+
 ./labnexus || {
   echo ""
-  echo "ERRORE: binary 'labnexus' non trovato o crashato accanto a labnexus.command."
-  echo "Verifica che labnexus.command e labnexus siano nella stessa cartella."
+  echo "ERRORE: binary 'labnexus' uscito con errore (crash o exit non-zero)."
+  echo "Se il problema persiste, contatta il referente tecnico."
   echo ""
   read -n 1 -s -r -p "Premi un tasto per chiudere la finestra..."
   echo ""

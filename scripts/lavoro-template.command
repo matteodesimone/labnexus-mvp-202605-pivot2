@@ -51,6 +51,9 @@ echo "  Lancio: $JOB_NAME"
 echo "═══════════════════════════════════════════════════════════════════"
 echo ""
 
+# Auto-heal del bit eseguibile: cloud-sync (kDrive/Dropbox/OneDrive) azzera +x.
+if [ -f "./labnexus" ] && [ ! -x "./labnexus" ]; then chmod +x ./labnexus 2>/dev/null; fi
+
 ./labnexus run --job "$JOB_NAME" --lavori-dir lavori --profiles-dir profili --config labnexus.config.toml --kb-dir KB-ispettore || {
   echo ""
   echo "ERRORE: esecuzione fallita. Vedi i messaggi sopra per il dettaglio."

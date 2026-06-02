@@ -17,7 +17,8 @@ provider = "eurouter"
 # annuale, competence-gap multi-tecnico, pt-analysis con z-score).
 # Per cambiare modello, consulta il catalogo su https://api.eurouter.ai/api/v1/models
 # o il dashboard eurouter (filtro qwen).
-modello = "qwen3.5-122b-a10b"
+# modello = "qwen3.5-122b-a10b"
+modello = "kimi-k2.6"
 
 # Parametri LLM di default. Sprint 1.5.C: context_window allargato a 262K
 # (4x rispetto al setting Sprint 1) per sfruttare la capacità del modello scelto

@@ -115,7 +115,7 @@ func Run(cfg Config) (*Result, error) {
 		log.Info("dry-run: nessuna chiamata LLM eseguita (%d token stimati)", check.Tokens)
 		return &Result{ExitCode: 0, TokensUsed: check.Tokens}, nil
 	}
-	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, triggerSource, log)
+	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, kbTexts, exclude, triggerSource, log)
 }
 
 // validateConfig riempie i default e verifica i campi obbligatori.
@@ -369,7 +369,7 @@ func isStdoutTTY() bool {
 // io.MultiWriter per scrivere il logger contemporaneamente su stderr + log file.
 // Body streaming live (FR-35): i token chunks vanno raw su stderr (TTY) +
 // sempre al log file.
-func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, triggerSource string, log *runlog.Logger) (*Result, error) {
+func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, kbTexts, exclude []string, triggerSource string, log *runlog.Logger) (*Result, error) {
 	prov, err := provider.Select(cfg.ProviderOverride, os.Getenv("LABNEXUS_PROVIDER"), p.Provider)
 	if err != nil {
 		return nil, err
@@ -383,6 +383,11 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	// Audit trail (NFR-11): dichiara nel .log quale sorgente di trigger è stata
 	// risolta (override job vs default profilo), così l'output è tracciabile.
 	multiLog.Info("trigger risolto da: %s", triggerSource)
+	// Audit trail: registra COSA è stato inviato al modello (KB, dati, esclusioni).
+	// L'.log si apre solo qui (dopo il parsing), quindi senza questo riepilogo il
+	// log non proverebbe quali dati sono stati inviati — gap diagnostico (Denis
+	// shakedown 2026-06-02: "dati non inviati?").
+	logInputAudit(multiLog, kbTexts, parsed, exclude, check, p)
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
 	logProviderRequest(multiLog, prov, p)
@@ -399,27 +404,39 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 		multiLog.Info("body sanitization: rimosso fence wrapping spurio (modello aveva racchiuso l'output in code block)")
 		body = cleaned
 	}
+	// Risposta vuota (EC): alcuni modelli (es. kimi-k2.6 su eurouter, shakedown
+	// 2026-06-02 CAPABILITY F) chiudono lo stream con done:true ma ZERO token.
+	// Non è un "completato": lo segnaliamo come 'vuoto', scriviamo un .md con la
+	// spiegazione (invece di un file vuoto) e NON generiamo PDF/DOCX vuoti.
+	var emptyOutput bool
+	body, stato, emptyOutput = finalizeOutput(body, stato, p, prov.Name())
+	if emptyOutput {
+		multiLog.Warn("il modello non ha restituito output (0 token / body vuoto): run marcato 'vuoto', niente PDF/DOCX. Riprova; se persiste, cambia modello o segnala.")
+	}
 	logRelPath := baseName + ".log"
 	outPath, fm, err := writeOutput(cfg, p, prov, parsed, check, body, stato, duration, started, multiLog, logRelPath)
 	if err != nil {
 		return nil, err
 	}
-	// PDF accoppiato (Sprint 1.5.D): gerarchia CLI > job > master > false.
-	var masterPDF *bool
-	if master != nil {
-		masterPDF = master.PDF.Enabled
-	}
-	pdfEnabled := config.ResolvePDFEnabled(cfg.PDFEnabledCLI, cfg.PDFEnabledJob, masterPDF)
-	if pdfPath := maybeWritePDF(outPath, body, fm, pdfEnabled, cfg.Capability, multiLog); pdfPath != "" {
-		multiLog.Info("pdf accoppiato: %s", pdfPath)
-	}
-	var masterDocx *bool
-	if master != nil {
-		masterDocx = master.Docx.Enabled
-	}
-	docxEnabled := config.ResolveDocxEnabled(cfg.DocxEnabledCLI, cfg.DocxEnabledJob, masterDocx)
-	if docxPath := maybeWriteDocx(outPath, body, fm, docxEnabled, cfg.Capability, multiLog); docxPath != "" {
-		multiLog.Info("docx accoppiato: %s", docxPath)
+	// PDF/DOCX accoppiati solo per run con output reale (Sprint 1.5.D): gerarchia
+	// CLI > job > master > false. Salta del tutto se la risposta è vuota.
+	if !emptyOutput {
+		var masterPDF *bool
+		if master != nil {
+			masterPDF = master.PDF.Enabled
+		}
+		pdfEnabled := config.ResolvePDFEnabled(cfg.PDFEnabledCLI, cfg.PDFEnabledJob, masterPDF)
+		if pdfPath := maybeWritePDF(outPath, body, fm, pdfEnabled, cfg.Capability, multiLog); pdfPath != "" {
+			multiLog.Info("pdf accoppiato: %s", pdfPath)
+		}
+		var masterDocx *bool
+		if master != nil {
+			masterDocx = master.Docx.Enabled
+		}
+		docxEnabled := config.ResolveDocxEnabled(cfg.DocxEnabledCLI, cfg.DocxEnabledJob, masterDocx)
+		if docxPath := maybeWriteDocx(outPath, body, fm, docxEnabled, cfg.Capability, multiLog); docxPath != "" {
+			multiLog.Info("docx accoppiato: %s", docxPath)
+		}
 	}
 	return &Result{
 		OutputPath:  outPath,
@@ -547,6 +564,57 @@ func exitCodeFor(stato string) int {
 		return 0
 	}
 	return 1
+}
+
+// finalizeOutput gestisce la risposta vuota del modello. Se il body è
+// vuoto/solo-whitespace ritorna un .md con la spiegazione, stato "vuoto" ed
+// empty=true; altrimenti lascia tutto invariato.
+func finalizeOutput(body, stato string, p *profile.Profile, provName string) (string, string, bool) {
+	if strings.TrimSpace(body) != "" {
+		return body, stato, false
+	}
+	return emptyBodyNotice(p.Modello, provName), "vuoto", true
+}
+
+// emptyBodyNotice è il contenuto .md scritto quando il modello restituisce 0
+// token: spiega cosa è successo invece di lasciare un file vuoto (Denis
+// shakedown 2026-06-02 CAPABILITY F).
+func emptyBodyNotice(modello, provName string) string {
+	return fmt.Sprintf("> ⚠️ Il modello non ha restituito alcun output (0 token).\n>\n"+
+		"> La richiesta è stata inviata correttamente — vedi il file `.log` accoppiato\n"+
+		"> per il dettaglio di KB, dati di input e prompt effettivamente inviati.\n"+
+		"> Il modello %q via %s ha però chiuso la risposta vuota.\n>\n"+
+		"> Possibili cause: instabilità o cold-start del modello, sovraccarico del\n"+
+		"> provider. **Riprova l'esecuzione.** Se persiste, valuta un modello diverso\n"+
+		"> o segnala al referente tecnico.\n", modello, provName)
+}
+
+// logInputAudit registra nel .log COSA è stato inviato al modello: KB, dati,
+// esclusioni, file NON parsati, stima token. Prova auditabile che i dati siano
+// arrivati (o che un file sia stato saltato in parsing) — il .log si apre dopo
+// il parsing, quindi senza questo riepilogo non lo registrerebbe.
+func logInputAudit(log *runlog.Logger, kbTexts []string, parsed *input.ParsedResult, exclude []string, check *tokens.CheckResult, p *profile.Profile) {
+	kbChars := 0
+	for _, t := range kbTexts {
+		kbChars += len(t)
+	}
+	log.Info("input inviato al modello:")
+	log.Info("  KB system context: %d file, %d caratteri", len(kbTexts), kbChars)
+	dataChars := 0
+	for _, f := range parsed.Files {
+		log.Info("  dato: %s (%d caratteri)", f.Name, f.Size)
+		dataChars += f.Size
+	}
+	log.Info("  dati input: %d file, %d caratteri", len(parsed.Files), dataChars)
+	for _, e := range exclude {
+		if strings.TrimSpace(e) != "" {
+			log.Info("  escluso dall'input (de-dup/exclude): %s", e)
+		}
+	}
+	for _, sk := range parsed.Skipped {
+		log.Warn("  NON parsato (saltato): %s — %s", sk.Name, sk.Reason)
+	}
+	log.Info("  stima totale: %d token / context %d", check.Tokens, p.ContextWindow)
 }
 
 func loadProfile(profiliDir, name string) (*profile.Profile, error) {

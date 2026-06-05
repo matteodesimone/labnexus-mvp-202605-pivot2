@@ -27,12 +27,12 @@ modello = "kimi-k2.6"
 # temperature: kimi-k2.6 ha temperatura FISSA 1.0 (doc Moonshot) — usare 1.0.
 #
 # max_tokens: kimi-k2.6 è un modello "thinking" → reasoning_content e content
-# CONDIVIDONO max_tokens; Moonshot raccomanda >= 16000. Qui sta alto (128K) ma
-# il motore lo restringe in automatico a (context - prompt - margine), così non
-# tronca mai per un valore fisso troppo basso, qualunque sia la dimensione
-# dell'input. Metti 0 per "auto puro" (tutto il budget disponibile, senza tetto).
+# CONDIVIDONO max_tokens; Moonshot raccomanda >= 16000. 0 = AUTO: il motore
+# calcola a ogni run il massimo budget di output possibile (context - prompt -
+# margine), così non tronca mai per un valore fisso e si adatta alla dimensione
+# dell'input. Metti un numero per imporre un tetto (comunque ristretto al context).
 temperature = 1.0
-max_tokens = 131072
+max_tokens = 0
 context_window = 262000
 
 # Chiave API per eurouter. Denis la riempie qui dopo lo zip extract.

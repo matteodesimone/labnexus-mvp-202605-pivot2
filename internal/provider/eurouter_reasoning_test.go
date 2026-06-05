@@ -78,3 +78,20 @@ func TestConsumeEurouterStream_EmptyContentAllReasoning(t *testing.T) {
 		t.Errorf("attesi reasoning presente + finish length, got reasoning=%q finish=%q", reasoning, finish)
 	}
 }
+
+// Errore del provider su HTTP 200 con body NON-SSE (es. JSON {"error":...}):
+// deve EMERGERE nel messaggio d'errore, non sparire dietro "timeout".
+func TestConsumeEurouterStream_SurfacesNonSSEError(t *testing.T) {
+	body := `{"error":{"message":"insufficient credits","type":"billing"}}`
+	ch := make(chan StreamEvent, 8)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(body)), ch)
+	var gotErr error
+	for ev := range ch {
+		if ev.Err != nil {
+			gotErr = ev.Err
+		}
+	}
+	if gotErr == nil || !strings.Contains(gotErr.Error(), "insufficient credits") {
+		t.Errorf("l'errore del provider deve emergere, got %v", gotErr)
+	}
+}

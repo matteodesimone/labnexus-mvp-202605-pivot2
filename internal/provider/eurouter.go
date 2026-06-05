@@ -144,9 +144,15 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	sawDone := false
+	contentSeen := false
+	var nonData strings.Builder // righe NON-SSE: spesso contengono l'errore vero del provider (es. {"error":...} su un 200)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data:") {
+			if s := strings.TrimSpace(line); s != "" && nonData.Len() < 4096 {
+				nonData.WriteString(s)
+				nonData.WriteByte('\n')
+			}
 			continue
 		}
 		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
@@ -168,6 +174,7 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 				ch <- StreamEvent{Reasoning: r}
 			}
 			if choice.Delta.Content != "" {
+				contentSeen = true
 				ch <- StreamEvent{Token: choice.Delta.Content}
 			}
 			if choice.FinishReason != nil && *choice.FinishReason != "" {
@@ -179,7 +186,21 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 		ch <- StreamEvent{Err: fmt.Errorf("eurouter: scanner: %w", err)}
 		return
 	}
-	if !sawDone {
-		ch <- StreamEvent{Err: fmt.Errorf("eurouter: timeout senza terminatore [DONE]")}
+	if sawDone {
+		return
+	}
+	// Niente [DONE].
+	if contentSeen {
+		// EOF dopo contenuto: output verosimilmente completo, server senza [DONE].
+		ch <- StreamEvent{Done: true, NoDoneMarker: true}
+		return
+	}
+	// Zero contenuto: il provider non ha streammato nulla. Spesso il body è un
+	// errore JSON su HTTP 200 (credito esaurito, modello/parametro rifiutato,
+	// rate limit). Lo facciamo EMERGERE invece del generico "timeout".
+	if extra := strings.TrimSpace(nonData.String()); extra != "" {
+		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token — risposta del provider (HTTP 200 non-SSE): %s", extra)}
+	} else {
+		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token e nessun [DONE] (stream vuoto dal provider)")}
 	}
 }

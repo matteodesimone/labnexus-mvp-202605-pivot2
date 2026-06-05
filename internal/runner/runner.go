@@ -107,15 +107,22 @@ func Run(cfg Config) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Budget di output dinamico + guardia: se il prompt occupa quasi tutto il
+	// context, resta troppo poco per un output utile → blocca con messaggio
+	// chiaro invece di produrre un output troncato/vuoto o sforare il context.
+	effMaxTokens, err := resolveOutputBudget(p.MaxTokens, check.Tokens, p.ContextWindow)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.ShowPrompt {
 		printPromptWithPIIWarning(composed, os.Stdout, os.Stderr, isStdoutTTY())
 	}
 	if cfg.DryRun {
 		log.Info("trigger risolto da: %s", triggerSource)
-		log.Info("dry-run: nessuna chiamata LLM eseguita (%d token stimati)", check.Tokens)
+		log.Info("dry-run: nessuna chiamata LLM eseguita (%d token stimati, budget output %d)", check.Tokens, effMaxTokens)
 		return &Result{ExitCode: 0, TokensUsed: check.Tokens}, nil
 	}
-	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, kbTexts, exclude, triggerSource, log)
+	return streamAndWriteOutput(cfg, master, p, composed, check, parsed, kbTexts, exclude, effMaxTokens, triggerSource, log)
 }
 
 // validateConfig riempie i default e verifica i campi obbligatori.
@@ -369,7 +376,7 @@ func isStdoutTTY() bool {
 // io.MultiWriter per scrivere il logger contemporaneamente su stderr + log file.
 // Body streaming live (FR-35): i token chunks vanno raw su stderr (TTY) +
 // sempre al log file.
-func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, kbTexts, exclude []string, triggerSource string, log *runlog.Logger) (*Result, error) {
+func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile, composed *prompt.Composed, check *tokens.CheckResult, parsed *input.ParsedResult, kbTexts, exclude []string, effMaxTokens int, triggerSource string, log *runlog.Logger) (*Result, error) {
 	prov, err := provider.Select(cfg.ProviderOverride, os.Getenv("LABNEXUS_PROVIDER"), p.Provider)
 	if err != nil {
 		return nil, err
@@ -388,11 +395,6 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	// log non proverebbe quali dati sono stati inviati — gap diagnostico (Denis
 	// shakedown 2026-06-02: "dati non inviati?").
 	logInputAudit(multiLog, kbTexts, parsed, exclude, check, p)
-	// max_tokens dinamico: per i modelli "thinking" (kimi) reasoning+content
-	// condividono il budget, quindi chiediamo il massimo possibile senza sforare
-	// il context (context - prompt - margine). Evita output troncati al crescere
-	// dell'input senza dover indovinare un valore fisso.
-	effMaxTokens := effectiveMaxTokens(p.MaxTokens, check.Tokens, p.ContextWindow)
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
 	logProviderRequest(multiLog, prov, p, effMaxTokens, check.Tokens)
@@ -474,13 +476,29 @@ func effectiveMaxTokens(configMax, promptTokens, contextWindow int) int {
 		margin = 4096
 	}
 	available := contextWindow - promptTokens - margin
-	if available < 1024 {
-		available = 1024
+	// Nessun floor: available può essere piccolo/negativo se il prompt riempie il
+	// context. Il caller (resolveOutputBudget) blocca se è sotto il minimo utile,
+	// così non si invia mai un max_tokens che sfora il context.
+	if configMax > 0 && configMax < available {
+		return configMax
 	}
-	if configMax <= 0 || configMax > available {
-		return available
+	return available
+}
+
+// minOutputBudget è il budget di output minimo per considerare un run sensato.
+// Sotto questa soglia il prompt occupa quasi tutto il context e l'output sarebbe
+// troncato/vuoto (peggio: un floor potrebbe sforare il context).
+const minOutputBudget = 4096
+
+// resolveOutputBudget calcola il budget di output effettivo e blocca il run con
+// un errore chiaro se il prompt non lascia abbastanza spazio per un output utile.
+func resolveOutputBudget(configMax, promptTokens, contextWindow int) (int, error) {
+	effMax := effectiveMaxTokens(configMax, promptTokens, contextWindow)
+	if contextWindow > 0 && effMax < minOutputBudget {
+		return 0, fmt.Errorf("runner: input troppo grande — restano solo %d token per l'output (context %d, prompt ~%d; riserva minima %d). Riduci i file di input o aumenta context_window",
+			effMax, contextWindow, promptTokens, minOutputBudget)
 	}
-	return configMax
+	return effMax, nil
 }
 
 func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profile.Profile, effMaxTokens, promptTokens int) {

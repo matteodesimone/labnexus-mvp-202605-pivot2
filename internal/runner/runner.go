@@ -388,10 +388,15 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	// log non proverebbe quali dati sono stati inviati — gap diagnostico (Denis
 	// shakedown 2026-06-02: "dati non inviati?").
 	logInputAudit(multiLog, kbTexts, parsed, exclude, check, p)
+	// max_tokens dinamico: per i modelli "thinking" (kimi) reasoning+content
+	// condividono il budget, quindi chiediamo il massimo possibile senza sforare
+	// il context (context - prompt - margine). Evita output troncati al crescere
+	// dell'input senza dover indovinare un valore fisso.
+	effMaxTokens := effectiveMaxTokens(p.MaxTokens, check.Tokens, p.ContextWindow)
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
-	logProviderRequest(multiLog, prov, p)
-	body, stato, err := callProviderWithStreaming(prov, composed, p, multiLog, bodyWriter)
+	logProviderRequest(multiLog, prov, p, effMaxTokens, check.Tokens)
+	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, multiLog, bodyWriter)
 	duration := time.Since(started)
 	multiLog.EndStep()
 	if err != nil {
@@ -449,7 +454,36 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 // logProviderRequest stampa info diagnostiche prima della chiamata al provider
 // (Sprint 1.5.C verbose). Endpoint risolto via env override o default. Visibile
 // anche nel .log accoppiato (audit trail NFR-11).
-func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profile.Profile) {
+// effectiveMaxTokens calcola il budget di output da chiedere al modello. Per i
+// modelli "thinking" (es. kimi-k2.6) reasoning_content e content CONDIVIDONO
+// max_tokens, quindi vogliamo il massimo possibile senza sforare il context:
+//
+//	max_tokens = context_window - prompt_token - margine
+//
+//   - configMax <= 0  → "auto": usa tutto il budget disponibile.
+//   - configMax > 0   → tetto, ma viene ristretto se il prompt non lascia spazio
+//     (evita prompt+output > context, che alcuni provider rifiutano).
+//
+// Margine ~5% del context per assorbire l'imprecisione della stima token.
+func effectiveMaxTokens(configMax, promptTokens, contextWindow int) int {
+	if contextWindow <= 0 {
+		return configMax
+	}
+	margin := contextWindow / 20
+	if margin < 4096 {
+		margin = 4096
+	}
+	available := contextWindow - promptTokens - margin
+	if available < 1024 {
+		available = 1024
+	}
+	if configMax <= 0 || configMax > available {
+		return available
+	}
+	return configMax
+}
+
+func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profile.Profile, effMaxTokens, promptTokens int) {
 	var endpoint string
 	switch prov.Name() {
 	case "eurouter":
@@ -463,8 +497,14 @@ func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profil
 			endpoint = "http://localhost:11434"
 		}
 	}
-	log.Info("provider: %s | endpoint: %s | modello: %s | temperature: %.2f | max_tokens: %d",
-		prov.Name(), endpoint, p.Modello, p.Temperature, p.MaxTokens)
+	maxTokensNote := fmt.Sprintf("%d", effMaxTokens)
+	if p.MaxTokens <= 0 {
+		maxTokensNote += " (auto)"
+	} else if effMaxTokens < p.MaxTokens {
+		maxTokensNote += fmt.Sprintf(" (ristretto dal context; config %d)", p.MaxTokens)
+	}
+	log.Info("provider: %s | endpoint: %s | modello: %s | temperature: %.2f | max_tokens: %s | prompt ~%d token",
+		prov.Name(), endpoint, p.Modello, p.Temperature, maxTokensNote, promptTokens)
 }
 
 // outputBaseName ritorna il base name del file output (senza estensione).
@@ -518,11 +558,11 @@ func isStderrTTY() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, log *runlog.Logger, bodyWriter io.Writer) (string, string, error) {
+func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, maxTokens int, log *runlog.Logger, bodyWriter io.Writer) (string, string, error) {
 	ch, err := prov.Stream(context.Background(), composed.System, composed.User, provider.Options{
 		Modello:       p.Modello,
 		Temperature:   p.Temperature,
-		MaxTokens:     p.MaxTokens,
+		MaxTokens:     maxTokens,
 		ContextWindow: p.ContextWindow,
 	})
 	if err != nil {

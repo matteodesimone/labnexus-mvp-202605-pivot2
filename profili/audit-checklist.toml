@@ -126,6 +126,12 @@ VINCOLI:
   documento, si verifica una registrazione, si osserva una prassi.
 - Non inserire domande "filosofiche" o "di sistema" senza azione 
   verificabile.
+
+## Apertura e chiusura standard — OBBLIGATORIE (oltre alle sezioni sopra)
+Applica SEMPRE il formato di apertura e chiusura definito nel system context (PERSONA punto 9, PROTOCOLLO_HANDOFF_QM, TRE_LIVELLI_CONFIDENZA):
+- APRI l'output con una riga: "Lettura tecnica per il QM — semaforo di confidenza 🟢/🟡/🔴 (solido / prudenziale / da confermare). Fonti consultate: [codici delle norme e documenti effettivamente citati]."
+- CHIUDI l'output con un blocco "## Decisione richiesta al QM/RT": cosa il QM deve approvare, correggere o integrare prima della messa in atto (hand-off).
+Mantieni i marcatori [DA VERIFICARE]/[DATO MANCANTE] dove servono e riconducili al livello di confidenza dichiarato in apertura.
 """
 
 [output.frontmatter_default]

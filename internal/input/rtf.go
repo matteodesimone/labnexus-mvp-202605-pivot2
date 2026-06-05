@@ -45,49 +45,119 @@ func decodeRtf(s string) string {
 	i := 0
 	for i < len(s) {
 		c := s[i]
-		switch {
-		case c == '{':
-			i++
-			// Look-ahead: se inizia con \ + destination word, attiva skip.
-			if word, advance := peekControlWord(s, i); destinationControlWords[word] {
+		// Dentro un gruppo destination (fonttbl/colortbl/{\*...}): conta solo le
+		// graffe fino a chiuderlo, non emettere nulla (gestisce anche il nesting).
+		if skipDepth > 0 {
+			switch c {
+			case '{':
 				skipDepth++
-				i += advance
-				continue
-			}
-		case c == '}':
-			if skipDepth > 0 {
+			case '}':
 				skipDepth--
 			}
 			i++
 			continue
+		}
+		switch {
+		case c == '{':
+			// Inizio gruppo: se è una destination, entra in skip (il contenuto —
+			// es. "Helvetica;" della fonttbl — non va nel testo).
+			if startsDestination(s, i+1) {
+				skipDepth = 1
+			}
+			i++
+		case c == '}':
+			i++
 		case c == '\\':
+			// Escape esadecimale cp1252 (\'XX): accenti À/à/§/é... — era la causa
+			// di "ATTIVITc0"/"a74.2.1"/"criticite0".
+			if i+3 < len(s) && s[i+1] == '\'' {
+				if b, ok := parseHexByte(s[i+2], s[i+3]); ok {
+					out.WriteRune(cp1252ToRune(b))
+					i += 4
+					continue
+				}
+			}
 			word, advance := peekControlWord(s, i+1)
 			if advance == 0 {
-				// Escape singolo: \\ \{ \} \~ ecc.
-				if i+1 < len(s) && skipDepth == 0 {
+				// Escape singolo: \\ \{ \} \~ + `\`+newline (a-capo cocoa/TextEdit).
+				if i+1 < len(s) {
 					switch s[i+1] {
 					case '\\', '{', '}':
 						out.WriteByte(s[i+1])
 					case '~':
 						out.WriteByte(' ')
+					case '\n', '\r':
+						out.WriteByte('\n')
 					}
 				}
 				i += 2
 				continue
 			}
-			if skipDepth == 0 {
-				writeControlWordOutput(&out, word)
-			}
+			writeControlWordOutput(&out, word)
 			i += 1 + advance
-			continue
 		default:
-			if skipDepth == 0 && (unicode.IsPrint(rune(c)) || c == '\n' || c == '\t') {
+			if unicode.IsPrint(rune(c)) || c == '\n' || c == '\t' {
 				out.WriteByte(c)
 			}
 			i++
 		}
 	}
 	return strings.TrimSpace(out.String())
+}
+
+// startsDestination indica se a `pos` (subito dopo una '{') inizia un gruppo
+// destination da saltare: `\<destinationword>` oppure `\*` (gruppo ignorabile).
+func startsDestination(s string, pos int) bool {
+	if pos >= len(s) || s[pos] != '\\' {
+		return false
+	}
+	pos++ // dopo il '\'
+	if pos < len(s) && s[pos] == '*' {
+		return true
+	}
+	word, _ := peekControlWord(s, pos)
+	return destinationControlWords[word]
+}
+
+func parseHexByte(a, b byte) (byte, bool) {
+	hi, ok1 := hexVal(a)
+	lo, ok2 := hexVal(b)
+	if !ok1 || !ok2 {
+		return 0, false
+	}
+	return hi<<4 | lo, true
+}
+
+func hexVal(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	}
+	return 0, false
+}
+
+// cp1252ToRune mappa un byte Windows-1252 al rune Unicode. 0x00-0x7F e 0xA0-0xFF
+// coincidono con Latin-1/Unicode (copre tutti gli accenti italiani e §); il range
+// 0x80-0x9F ha mapping speciali (smart quotes, trattini, € ecc.).
+func cp1252ToRune(b byte) rune {
+	if b < 0x80 || b >= 0xA0 {
+		return rune(b)
+	}
+	if r, ok := cp1252Specials[b]; ok {
+		return r
+	}
+	return rune(b)
+}
+
+var cp1252Specials = map[byte]rune{
+	0x80: '€', 0x82: '‚', 0x83: 'ƒ', 0x84: '„', 0x85: '…', 0x86: '†', 0x87: '‡',
+	0x88: 'ˆ', 0x89: '‰', 0x8A: 'Š', 0x8B: '‹', 0x8C: 'Œ', 0x8E: 'Ž', 0x91: '‘',
+	0x92: '’', 0x93: '“', 0x94: '”', 0x95: '•', 0x96: '–', 0x97: '—',
+	0x98: '˜', 0x99: '™', 0x9A: 'š', 0x9B: '›', 0x9C: 'œ', 0x9E: 'ž', 0x9F: 'Ÿ',
 }
 
 // peekControlWord legge una control word RTF a partire da i. Una control word

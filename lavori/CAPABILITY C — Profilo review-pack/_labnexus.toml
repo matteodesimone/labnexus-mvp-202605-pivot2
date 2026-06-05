@@ -4,7 +4,4 @@
 # sovrascrivi con un file (.rtf/.txt/.md) via 'trigger_prompt_file' OPPURE
 # con un testo inline via 'trigger_prompt = "..."'. Vuoti = usa il profilo.
 profile = "review-pack"
-# Override .rtf disattivato: il prompt (con scaffolding semaforo/fonti/hand-off)
-# vive ora nel profilo. Il .rtf di Denis resta come riferimento ma NON viene
-# inviato al modello (vedi exclude).
-exclude = ["Prompt_INPUT_Rev.00.rtf"]
+trigger_prompt_file = "Prompt_INPUT_Rev.00.rtf"

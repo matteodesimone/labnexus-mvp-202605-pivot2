@@ -785,9 +785,12 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 			if ev.Reasoning != "" {
 				if !sawReasoning {
 					sawReasoning = true
-					log.Info("il modello sta ragionando (reasoning streaming) prima di produrre l'output...")
+					log.Info("───── ragionamento del modello (reasoning) — mostrato e loggato, NON incluso nell'output .md ─────")
 				}
 				reasoningChars += len(ev.Reasoning)
+				// Mostrato (TTY) + loggato (.log) via bodyWriter; NON va in `b`,
+				// così il .md resta la risposta pulita. Niente del modello si butta.
+				_, _ = bodyWriter.Write([]byte(ev.Reasoning))
 			}
 			if ev.FinishReason != "" {
 				finishReason = ev.FinishReason
@@ -796,6 +799,7 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 				if !firstToken {
 					firstToken = true
 					if reasoningChars > 0 {
+						_, _ = bodyWriter.Write([]byte("\n\n───── output ─────\n\n"))
 						log.Info("reasoning concluso: %d caratteri in %s → inizio generazione output",
 							reasoningChars, time.Since(started).Round(time.Second))
 					}

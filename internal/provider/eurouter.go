@@ -32,6 +32,11 @@ type sseRequest struct {
 	Model    string       `json:"model"`
 	Messages []sseMessage `json:"messages"`
 	Stream   bool         `json:"stream"`
+	// Prima NON venivano inviati: il modello girava sui propri default (su un
+	// modello "thinking" un max_tokens di default basso, consumato dal reasoning,
+	// produce risposte vuote). omitempty: 0 = lascia il default del modello.
+	MaxTokens   int     `json:"max_tokens,omitempty"`
+	Temperature float64 `json:"temperature,omitempty"`
 }
 
 type sseChunk struct {
@@ -103,7 +108,9 @@ func buildEurouterRequest(system, user string, opts Options) sseRequest {
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Stream: true,
+		Stream:      true,
+		MaxTokens:   opts.MaxTokens,
+		Temperature: opts.Temperature,
 	}
 }
 

@@ -586,8 +586,8 @@ func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Compo
 	if err != nil {
 		return "", "", err
 	}
-	body, stato := drainStreamWithBody(ch, log, bodyWriter)
-	return body, stato, nil
+	body, stato, derr := drainStreamWithBody(ch, log, bodyWriter)
+	return body, stato, derr
 }
 
 func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, parsed *input.ParsedResult, check *tokens.CheckResult, body, stato string, duration time.Duration, started time.Time, log *runlog.Logger, logRelPath string) (string, *output.Frontmatter, error) {
@@ -710,14 +710,14 @@ func loadKB(kbDir string, files []string) ([]string, error) {
 //   - Ticker 30s (non-TTY only): stampa una linea di stato periodica.
 //   - Al primo token: stampa il TTFT (time-to-first-token) e segna l'inizio della generazione.
 //   - A fine stream: log.StreamEnd con statistica finale.
-func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, string) {
+func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, string, error) {
 	return drainStreamWithBody(ch, log, io.Discard)
 }
 
 // drainStreamWithBody è la variant di drainStream che riceve anche un
 // bodyWriter dove scrivere raw i token chunks (FR-35 body streaming live).
 // In TTY: bodyWriter = io.MultiWriter(stderr, logFile). Non-TTY: logFile only.
-func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter io.Writer) (string, string) {
+func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter io.Writer) (string, string, error) {
 	var b strings.Builder
 	// Default "interrotto": diventa "completato" solo se riceviamo esplicitamente done:true (EC-8).
 	stato := "interrotto"
@@ -774,13 +774,13 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 			if !ok {
 				log.StreamEnd(tokenCount, time.Since(started))
 				finalize()
-				return b.String(), stato
+				return b.String(), stato, nil
 			}
 			if ev.Err != nil {
 				log.StreamEnd(tokenCount, time.Since(started))
 				log.Warn("stream error: %v", ev.Err)
 				finalize()
-				return b.String(), stato
+				return b.String(), stato, ev.Err
 			}
 			if ev.Reasoning != "" {
 				if !sawReasoning {
@@ -814,7 +814,7 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 				}
 				log.StreamEnd(tokenCount, time.Since(started))
 				finalize()
-				return b.String(), stato
+				return b.String(), stato, nil
 			}
 		}
 	}

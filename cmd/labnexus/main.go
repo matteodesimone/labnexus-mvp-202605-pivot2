@@ -38,6 +38,7 @@ func classifyError(err error) int {
 		"streaming Ollama corrotto",
 		"eurouter: timeout",
 		"eurouter: scanner",
+		"eurouter: nessun token", // provider ha risposto vuoto/errore non-SSE → runtime
 		"interrotto",
 		"oltre il 50%", // EC-1: data-quality error → runtime, non misuse
 	}

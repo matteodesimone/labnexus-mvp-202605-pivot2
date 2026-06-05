@@ -27,9 +27,11 @@ type Options struct {
 // StreamEvent rappresenta un singolo evento dello stream.
 type StreamEvent struct {
 	Token        string
+	Reasoning    string // delta di reasoning_content (modelli "thinking" es. kimi): diagnostico, NON va nell'output finale
 	Done         bool
 	Err          error
-	NoDoneMarker bool // true quando Done=true emesso per EOF post-content (no done:true esplicito dal server)
+	NoDoneMarker bool   // true quando Done=true emesso per EOF post-content (no done:true esplicito dal server)
+	FinishReason string // "stop"|"length"|"content_filter"|... — perché lo stream si è chiuso (diagnostica empty/troncato)
 }
 
 // LLMProvider è l'interface unica di chiamata.

@@ -666,6 +666,19 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 	started := time.Now()
 	var tokenCount int
 	var firstToken bool
+	// Diagnostica modelli "thinking" (es. kimi): reasoning_content streamato a
+	// parte dal contenuto + finish_reason. Spiega TTFT lunghi e risposte vuote.
+	var reasoningChars int
+	var sawReasoning bool
+	var finishReason string
+	finalize := func() {
+		if finishReason != "" {
+			log.Info("finish_reason: %s", finishReason)
+		}
+		if reasoningChars > 0 {
+			log.Info("reasoning totale: %d caratteri di ragionamento (non inclusi nell'output)", reasoningChars)
+		}
+	}
 
 	log.Info("attendo risposta dal modello (warmup può richiedere minuti su modelli grandi)...")
 
@@ -680,8 +693,13 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 		select {
 		case <-waitTicker.C:
 			if !firstToken {
-				log.Info("...ancora in attesa del primo token (%s elapsed)",
-					time.Since(started).Round(time.Second))
+				if sawReasoning {
+					log.Info("...il modello sta ragionando (reasoning: %d caratteri, %s elapsed)",
+						reasoningChars, time.Since(started).Round(time.Second))
+				} else {
+					log.Info("...ancora in attesa del primo token (%s elapsed)",
+						time.Since(started).Round(time.Second))
+				}
 			}
 		case <-progressTicker.C:
 			if firstToken {
@@ -697,16 +715,32 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 		case ev, ok := <-ch:
 			if !ok {
 				log.StreamEnd(tokenCount, time.Since(started))
+				finalize()
 				return b.String(), stato
 			}
 			if ev.Err != nil {
 				log.StreamEnd(tokenCount, time.Since(started))
 				log.Warn("stream error: %v", ev.Err)
+				finalize()
 				return b.String(), stato
+			}
+			if ev.Reasoning != "" {
+				if !sawReasoning {
+					sawReasoning = true
+					log.Info("il modello sta ragionando (reasoning streaming) prima di produrre l'output...")
+				}
+				reasoningChars += len(ev.Reasoning)
+			}
+			if ev.FinishReason != "" {
+				finishReason = ev.FinishReason
 			}
 			if ev.Token != "" {
 				if !firstToken {
 					firstToken = true
+					if reasoningChars > 0 {
+						log.Info("reasoning concluso: %d caratteri in %s → inizio generazione output",
+							reasoningChars, time.Since(started).Round(time.Second))
+					}
 					log.Info("primo token ricevuto (TTFT %s), generazione in corso...",
 						time.Since(started).Round(time.Millisecond))
 				}
@@ -721,6 +755,7 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 					log.Warn("stream chiuso senza done marker dal server (output verosimilmente completo, ma il modello non ha emesso il chunk finale done:true — vedi bug eof-post-content-falsamente-interrotto)")
 				}
 				log.StreamEnd(tokenCount, time.Since(started))
+				finalize()
 				return b.String(), stato
 			}
 		}

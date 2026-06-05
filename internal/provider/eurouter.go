@@ -37,8 +37,11 @@ type sseRequest struct {
 type sseChunk struct {
 	Choices []struct {
 		Delta struct {
-			Content string `json:"content"`
+			Content          string `json:"content"`
+			ReasoningContent string `json:"reasoning_content"`
+			Reasoning        string `json:"reasoning"`
 		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
 }
 
@@ -150,8 +153,18 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 			continue // tolerante: chunk malformato isolato
 		}
 		for _, choice := range c.Choices {
+			// Reasoning (modelli "thinking" come kimi): delta.reasoning_content
+			// o delta.reasoning. Emesso separato dal contenuto — diagnostico.
+			if r := choice.Delta.ReasoningContent; r != "" {
+				ch <- StreamEvent{Reasoning: r}
+			} else if r := choice.Delta.Reasoning; r != "" {
+				ch <- StreamEvent{Reasoning: r}
+			}
 			if choice.Delta.Content != "" {
 				ch <- StreamEvent{Token: choice.Delta.Content}
+			}
+			if choice.FinishReason != nil && *choice.FinishReason != "" {
+				ch <- StreamEvent{FinishReason: *choice.FinishReason}
 			}
 		}
 	}

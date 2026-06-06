@@ -729,12 +729,17 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 	var reasoningChars int
 	var sawReasoning bool
 	var finishReason string
+	var usage *provider.Usage
 	finalize := func() {
 		if finishReason != "" {
 			log.Info("finish_reason: %s", finishReason)
 		}
 		if reasoningChars > 0 {
 			log.Info("reasoning totale: %d caratteri di ragionamento (non inclusi nell'output)", reasoningChars)
+		}
+		if usage != nil {
+			log.Info("usage (token reali dal provider): prompt=%d, completion=%d (di cui reasoning=%d), totale=%d",
+				usage.PromptTokens, usage.CompletionTokens, usage.ReasoningTokens, usage.TotalTokens)
 		}
 	}
 
@@ -794,6 +799,9 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 			}
 			if ev.FinishReason != "" {
 				finishReason = ev.FinishReason
+			}
+			if ev.Usage != nil {
+				usage = ev.Usage
 			}
 			if ev.Token != "" {
 				if !firstToken {

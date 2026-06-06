@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -93,5 +94,34 @@ func TestConsumeEurouterStream_SurfacesNonSSEError(t *testing.T) {
 	}
 	if gotErr == nil || !strings.Contains(gotErr.Error(), "insufficient credits") {
 		t.Errorf("l'errore del provider deve emergere, got %v", gotErr)
+	}
+}
+
+// stream_options.include_usage deve essere nella richiesta (per ricevere i
+// token reali), e il chunk usage deve essere parsato e emesso.
+func TestEurouter_UsageRequestedAndParsed(t *testing.T) {
+	b, _ := json.Marshal(buildEurouterRequest("s", "u", Options{Modello: "kimi-k2.6", MaxTokens: 0, Temperature: 1.0}))
+	if !strings.Contains(string(b), `"stream_options":{"include_usage":true}`) {
+		t.Errorf("la richiesta deve chiedere stream_options.include_usage, got %s", b)
+	}
+	sse := strings.Join([]string{
+		`data: {"choices":[{"delta":{"content":"ciao"}}]}`,
+		`data: {"choices":[],"usage":{"prompt_tokens":1200,"completion_tokens":800,"total_tokens":2000,"completion_tokens_details":{"reasoning_tokens":500}}}`,
+		`data: [DONE]`,
+		"",
+	}, "\n")
+	ch := make(chan StreamEvent, 16)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), ch)
+	var u *Usage
+	for ev := range ch {
+		if ev.Usage != nil {
+			u = ev.Usage
+		}
+	}
+	if u == nil {
+		t.Fatal("usage non parsato")
+	}
+	if u.PromptTokens != 1200 || u.CompletionTokens != 800 || u.ReasoningTokens != 500 || u.TotalTokens != 2000 {
+		t.Errorf("usage = %+v, want prompt=1200 completion=800 reasoning=500 total=2000", u)
 	}
 }

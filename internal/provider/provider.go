@@ -32,6 +32,16 @@ type StreamEvent struct {
 	Err          error
 	NoDoneMarker bool   // true quando Done=true emesso per EOF post-content (no done:true esplicito dal server)
 	FinishReason string // "stop"|"length"|"content_filter"|... — perché lo stream si è chiuso (diagnostica empty/troncato)
+	Usage        *Usage // token reali riportati dal provider (richiede stream_options.include_usage)
+}
+
+// Usage sono i conteggi token reali del provider (meta del modello). Per i
+// modelli "thinking" ReasoningTokens dice quanto è stato speso a ragionare.
+type Usage struct {
+	PromptTokens     int
+	CompletionTokens int
+	ReasoningTokens  int
+	TotalTokens      int
 }
 
 // LLMProvider è l'interface unica di chiamata.

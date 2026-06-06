@@ -37,6 +37,22 @@ type sseRequest struct {
 	// produce risposte vuote). omitempty: 0 = lascia il default del modello.
 	MaxTokens   int     `json:"max_tokens,omitempty"`
 	Temperature float64 `json:"temperature,omitempty"`
+	// StreamOptions.include_usage: chiede al provider di emettere il chunk finale
+	// con i token reali (prompt/completion/reasoning). Meta del modello, loggato.
+	StreamOptions *sseStreamOptions `json:"stream_options,omitempty"`
+}
+
+type sseStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
+}
+
+type sseUsage struct {
+	PromptTokens            int `json:"prompt_tokens"`
+	CompletionTokens        int `json:"completion_tokens"`
+	TotalTokens             int `json:"total_tokens"`
+	CompletionTokensDetails *struct {
+		ReasoningTokens int `json:"reasoning_tokens"`
+	} `json:"completion_tokens_details"`
 }
 
 type sseChunk struct {
@@ -48,6 +64,7 @@ type sseChunk struct {
 		} `json:"delta"`
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *sseUsage `json:"usage"`
 }
 
 // Stream invia la richiesta SSE e ritorna un canale di StreamEvent.
@@ -108,9 +125,10 @@ func buildEurouterRequest(system, user string, opts Options) sseRequest {
 			{Role: "system", Content: system},
 			{Role: "user", Content: user},
 		},
-		Stream:      true,
-		MaxTokens:   opts.MaxTokens,
-		Temperature: opts.Temperature,
+		Stream:        true,
+		MaxTokens:     opts.MaxTokens,
+		Temperature:   opts.Temperature,
+		StreamOptions: &sseStreamOptions{IncludeUsage: true},
 	}
 }
 
@@ -180,6 +198,18 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 			if choice.FinishReason != nil && *choice.FinishReason != "" {
 				ch <- StreamEvent{FinishReason: *choice.FinishReason}
 			}
+		}
+		// Chunk finale con usage (stream_options.include_usage): token reali.
+		if u := c.Usage; u != nil {
+			ev := StreamEvent{Usage: &Usage{
+				PromptTokens:     u.PromptTokens,
+				CompletionTokens: u.CompletionTokens,
+				TotalTokens:      u.TotalTokens,
+			}}
+			if u.CompletionTokensDetails != nil {
+				ev.Usage.ReasoningTokens = u.CompletionTokensDetails.ReasoningTokens
+			}
+			ch <- ev
 		}
 	}
 	if err := scanner.Err(); err != nil {

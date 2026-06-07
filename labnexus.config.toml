@@ -18,7 +18,8 @@ provider = "eurouter"
 # Per cambiare modello, consulta il catalogo su https://api.eurouter.ai/api/v1/models
 # o il dashboard eurouter (filtro qwen).
 # modello = "qwen3.5-122b-a10b"
-modello = "kimi-k2.6"
+modello = "llama-4-maverick"
+# modello = "kimi-k2.6"
 
 # Parametri LLM di default. context_window = 256000: è il limite REALMENTE applicato
 # dal gateway eurouter (HTTP 400 "exceeds model context window (256000)"), più stretto
@@ -41,7 +42,7 @@ modello = "kimi-k2.6"
 # input piccoli chiede molto più del necessario. NON lasciare vuoto/omesso: il
 # default documentato eurouter/Moonshot è ~1024 → un thinking lo esaurisce nel
 # reasoning e torna VUOTO.
-temperature = 1.0
+temperature = 0.5
 max_tokens = 32768
 context_window = 256000
 

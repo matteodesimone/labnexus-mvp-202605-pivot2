@@ -19,8 +19,10 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/ledongthuc/pdf"
+	"golang.org/x/text/encoding/charmap"
 )
 
 // SupportedExt elenca le estensioni accettate (FR-4 + Sprint 1.5.B FR-21).
@@ -78,9 +80,9 @@ func ParseDir(dir string, excludeRel ...string) (*ParsedResult, error) {
 // (Sprint 1.5.C concierge mode) che NON vanno parsati come input domain-specific.
 // Skip silenzioso: niente warning "formato non supportato".
 var labnexusInternalFiles = map[string]bool{
-	"_labnexus.toml":  true, // job metadata (FR-26)
-	"Esegui.command":  true, // launcher per-capability (Sprint 1.5.C concierge)
-	".DS_Store":       true, // macOS metadata
+	"_labnexus.toml": true, // job metadata (FR-26)
+	"Esegui.command": true, // launcher per-capability (Sprint 1.5.C concierge)
+	".DS_Store":      true, // macOS metadata
 }
 
 // labnexusInternalDirs sono cartelle che NON vanno attraversate dal walk:
@@ -222,7 +224,7 @@ func ParseTriggerPromptFile(inputDir, relPath string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return string(data), nil
+		return decodeText(data), nil
 	case ".rtf":
 		return parseRtf(absFull)
 	default:
@@ -237,7 +239,7 @@ func extract(path, ext string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return string(data), nil
+		return decodeText(data), nil
 	case ".pdf":
 		return extractPDF(path)
 	case ".docx":
@@ -252,6 +254,43 @@ func extract(path, ext string) (string, error) {
 		return parseRtf(path)
 	}
 	return "", fmt.Errorf("estensione %s non gestita", ext)
+}
+
+// decodeText normalizza il testo plain a UTF-8. I file esportati da editor su
+// macOS/Windows sono spesso in una codifica legacy a byte singolo (MacRoman,
+// Windows-1252): letti come UTF-8 producono mojibake che inquina il prompt
+// inviato al modello (shakedown 07/06: input "ACIAA A1 rilievi.txt" in MacRoman
+// → refusi nelle intestazioni dell'output). UTF-8 valido passa INVARIATO; il
+// resto viene decodificato dalla codifica legacy individuata.
+func decodeText(data []byte) string {
+	if utf8.Valid(data) {
+		return string(data)
+	}
+	// Non UTF-8: codifica legacy a byte singolo. Distinzione MacRoman vs
+	// Windows-1252 sulla fascia C1 (0x80–0x9F): in MacRoman sono lettere accentate
+	// (frequentissime in italiano: à=0x88, è=0x8F, ò=0x97…), in Windows-1252 sono
+	// punteggiatura/indefiniti. La presenza di byte C1 indica quindi MacRoman.
+	dec := charmap.Windows1252.NewDecoder()
+	if hasC1Bytes(data) {
+		dec = charmap.Macintosh.NewDecoder()
+	}
+	if out, err := dec.Bytes(data); err == nil && utf8.Valid(out) {
+		return string(out)
+	}
+	// Fallback difensivo: rendi comunque l'input UTF-8-safe (sostituisce le
+	// sequenze invalide con U+FFFD) invece di passare byte grezzi al modello.
+	return strings.ToValidUTF8(string(data), "�")
+}
+
+// hasC1Bytes ritorna true se data contiene almeno un byte nella fascia C1
+// (0x80–0x9F): in MacRoman quei byte sono lettere accentate, in Windows-1252 no.
+func hasC1Bytes(data []byte) bool {
+	for _, b := range data {
+		if b >= 0x80 && b <= 0x9F {
+			return true
+		}
+	}
+	return false
 }
 
 func extractPDF(path string) (string, error) {

@@ -100,3 +100,53 @@ func Merge(master *Master, p *profile.Profile) *profile.Profile {
 	}
 	return &cp
 }
+
+// Overlay è la funzione UNICA di override a strati: legge il TOML in path e ne
+// sovrappone i parametri di config sopra `active`, applicando SOLO le chiavi
+// PRESENTI nel file (md.IsDefined) e lasciando invariate le assenti. Va chiamata
+// una volta per strato che deve sovrascrivere (es. il `_labnexus.toml` del job
+// sopra il profilo già risolto) — catena config → profilo → _labnexus.
+//
+// Essendo presence-aware, distingue "campo a 0/'' ESPLICITO" da "omesso" e
+// risolve così la limitazione di Merge sui campi numerici (vedi commento sopra):
+// `temperature = 0.0` nel file viene applicato, omesso viene ereditato.
+//
+// ESCLUSI di proposito: trigger_prompt/trigger_prompt_file (XOR FR-16 + sorgente
+// tracciata nell'audit → path dedicato del runner) e [pdf]/[docx] (risolti con
+// *bool da ResolvePDFEnabled/ResolveDocxEnabled). Aggiungere un nuovo parametro
+// overridable = una riga qui, e funziona a tutti gli strati.
+func Overlay(active *profile.Profile, path string) error {
+	if active == nil {
+		return fmt.Errorf("config: Overlay: active nil")
+	}
+	var tmp profile.Profile
+	md, err := toml.DecodeFile(path, &tmp)
+	if err != nil {
+		return fmt.Errorf("config: overlay %s: %w", path, err)
+	}
+	if md.IsDefined("provider") {
+		active.Provider = tmp.Provider
+	}
+	if md.IsDefined("modello") {
+		active.Modello = tmp.Modello
+	}
+	if md.IsDefined("temperature") {
+		active.Temperature = tmp.Temperature
+	}
+	if md.IsDefined("max_tokens") {
+		active.MaxTokens = tmp.MaxTokens
+	}
+	if md.IsDefined("context_window") {
+		active.ContextWindow = tmp.ContextWindow
+	}
+	if md.IsDefined("kb_files") {
+		active.KbFiles = tmp.KbFiles
+	}
+	if md.IsDefined("descrizione") {
+		active.Descrizione = tmp.Descrizione
+	}
+	if md.IsDefined("output", "frontmatter_default") {
+		active.Output.FrontmatterDefault = tmp.Output.FrontmatterDefault
+	}
+	return nil
+}

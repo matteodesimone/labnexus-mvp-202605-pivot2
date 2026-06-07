@@ -5,3 +5,12 @@
 # con un testo inline via 'trigger_prompt = "..."'. Vuoti = usa il profilo.
 profile = "revisione"
 trigger_prompt_file = "Prompt_INPUT_Rev.00.rtf"
+
+# Override LOCALE di questo job (vince su profilo e config master). Il prompt di A è
+# il più grande (~229k token reali) → col default 32768 resterebbe a ~200 token dal
+# limite del modello. Qui riserviamo più margine: 24576 lascia ~8k sotto il limite,
+# restando abbondante per il report (output osservato ~15k). Se nel log vedi
+# 'finish_reason: length' alza; se l'input cresce e sfora, abbassa. (Si può
+# sovrascrivere qui qualsiasi parametro LLM: provider, modello, temperature,
+# max_tokens, context_window.)
+max_tokens = 24576

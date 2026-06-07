@@ -357,9 +357,14 @@ profile = "<nome>"
 # QUESTO lavoro. Scommenta UNA sola delle due righe (mai entrambe).
 # trigger_prompt_file = "Prompt_INPUT.rtf"   # un file .rtf/.txt/.md editabile in Word/Pages, dentro questa cartella
 # trigger_prompt = "..."                     # oppure un testo inline (≥ 50 caratteri)
+# Override parametri LLM (opzionale): vincono su profilo e master per QUESTO lavoro.
+# max_tokens = 24576    # es. più margine se il prompt è molto grande
+# temperature = 0.2     # idem per provider / modello / context_window
 ​```
 
 Le righe di override sono **commentate**: così il job usa il `trigger_prompt` del profilo (il default shipped). Scommetta UNA delle due (XOR — mai entrambe) solo se per questo lavoro vuole sovrascrivere il default: `trigger_prompt_file` per un file editabile in Word/Pages dentro la cartella, oppure `trigger_prompt` per un testo inline. Precedenza a runtime: **override del job › default del profilo**. La sorgente risolta viene scritta nel `.log` di audit (riga `trigger risolto da: …`).
+
+**Override dei parametri LLM (oltre al trigger)**: lo stesso `_labnexus.toml` può sovrascrivere QUALSIASI parametro di config — `provider`, `modello`, `temperature`, `max_tokens`, `context_window` — solo per questo lavoro. La catena di ereditarietà completa è **`labnexus.config.toml` (master, default) → profilo → `_labnexus.toml`** (precedenza crescente): ogni livello sovrascrive le chiavi che definisce ed eredita le altre. Esempio reale: la Capability A ha un prompt enorme, quindi il suo `_labnexus.toml` imposta `max_tokens = 24576` per più margine, mentre gli altri lavori ereditano il default del master. Implementato dalla funzione unica `config.Overlay` (presence-aware: un valore esplicito a `0` viene applicato, uno omesso ereditato).
 
 ## 4. Copia l'Esegui.command nella nuova cartella
 

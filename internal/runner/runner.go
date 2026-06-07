@@ -154,6 +154,19 @@ func loadAndValidateProfile(cfg Config, log *runlog.Logger) (*profile.Profile, *
 		return nil, nil, err
 	}
 	merged := config.Merge(master, p)
+	// Strato 3 della catena config → profilo → _labnexus: se la cartella di input
+	// contiene un `_labnexus.toml`, i suoi parametri sovrascrivono profilo e master
+	// (override-present, vince su entrambi) tramite la funzione unica config.Overlay.
+	// Vale sia per `run --job` sia per `--input <cartella-job>` e `check`. I
+	// trigger/pdf/docx restano gestiti dal loro path dedicato (XOR + *bool).
+	if cfg.InputDir != "" {
+		jobMeta := filepath.Join(cfg.InputDir, "_labnexus.toml")
+		if _, statErr := os.Stat(jobMeta); statErr == nil {
+			if err := config.Overlay(merged, jobMeta); err != nil {
+				return nil, nil, fmt.Errorf("runner: %w", err)
+			}
+		}
+	}
 	if err := profile.Validate(merged, cfg.KbDir); err != nil {
 		return nil, nil, fmt.Errorf("runner: validate profilo: %w", err)
 	}

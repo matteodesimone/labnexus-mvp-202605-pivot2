@@ -28,16 +28,21 @@ modello = "kimi-k2.6"
 # temperature: kimi-k2.6 ha temperatura FISSA 1.0 (doc Moonshot) — usare 1.0.
 #
 # max_tokens: kimi-k2.6 è un modello "thinking" → reasoning_content e content
-# CONDIVIDONO max_tokens; Moonshot raccomanda >= 16000 (esempio ufficiale: 32768).
-# 0 = AUTO: labnexus calcola context − stima_prompt − buffer usando la densità REALE
-# di kimi (~3,2 char/token, verificata), così la prima chiamata ENTRA al primo colpo
-# (output quasi-massimo, log pulito). NON omette max_tokens: senza, il default
-# documentato eurouter/Moonshot è ~1024 → un thinking lo esaurisce nel reasoning e
-# torna VUOTO. Se un contenuto è più denso del previsto e sfora, labnexus calibra sul
-# conteggio REALE del provider e riprova (loop, log pulito); se il reale non lascia i
-# 16000 minimi, errore chiaro a schermo+log. Metti un numero per un tetto fisso.
+# CONDIVIDONO max_tokens; Moonshot raccomanda >= 16000 e nell'esempio ufficiale usa
+# 32768. DEFAULT = 32768: valore statico sano che copre reasoning+content insieme
+# (massimo combinato osservato sui 7 test reali: ~27000) e fa entrare tutte le
+# capability al primo colpo. Se il prompt reale + 32768 dovesse sforare il limite del
+# modello, labnexus ricalcola sul conteggio ESATTO del provider e riprova (backstop,
+# log pulito); se non resta spazio per i 16000 minimi → errore chiaro a schermo+log.
+# I 7 profili ereditano questo valore (non definiscono max_tokens).
+#
+# 0 = AUTO (alternativa, algoritmo intatto): labnexus calcola context − stima_prompt
+# − buffer (densità reale kimi ~3,2 char/tok), output massimo adattivo — ma sugli
+# input piccoli chiede molto più del necessario. NON lasciare vuoto/omesso: il
+# default documentato eurouter/Moonshot è ~1024 → un thinking lo esaurisce nel
+# reasoning e torna VUOTO.
 temperature = 1.0
-max_tokens = 0
+max_tokens = 32768
 context_window = 256000
 
 # Chiave API per eurouter. Denis la riempie qui dopo lo zip extract.

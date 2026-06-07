@@ -413,8 +413,9 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
 	logProviderRequest(multiLog, prov, p, effMaxTokens, check.Tokens)
+	idleTimeout, maxTransient := resolveStreamTuning(master)
 	var reasoningBuf strings.Builder
-	body, stato, err := streamWithRetries(prov, composed, p, effMaxTokens, multiLog, bodyWriter, &reasoningBuf)
+	body, stato, err := streamWithRetries(prov, composed, p, effMaxTokens, multiLog, bodyWriter, &reasoningBuf, idleTimeout, maxTransient)
 	duration := time.Since(started)
 	multiLog.EndStep()
 	// Salva SEMPRE il canale reasoning in un .md affiancato (richiesta 07/06): il
@@ -505,25 +506,48 @@ const minOutputBudget = 16000
 // least N" PER DIFETTO; l'esatto arriva dopo — si itera finché la richiesta entra.
 const maxProviderRetries = 4
 
-// maxTransientRetries limita i retry su fallimenti TRANSITORI e non-deterministici
-// del modello "thinking": stream in stallo (errStreamIdle) e output vuoto (il
-// reasoning ha consumato tutto il budget). A temperature fissa 1.0 su prompt al
-// limite questi esiti sono una lotteria; un retry "pulito" della stessa richiesta
-// ha buone probabilità di riuscire (shakedown 07/06: 3 run su 5 erano stalli
-// pre-primo-token recuperati a mano). Distinto da maxProviderRetries (calibrazione).
-const maxTransientRetries = 2
+// defaultMaxTransientRetries limita i retry su fallimenti TRANSITORI e
+// non-deterministici del modello "thinking": stallo a METÀ generazione
+// (errStreamIdle) e output vuoto. Override via config (StreamMaxRetries).
+const defaultMaxTransientRetries = 2
 
-// streamIdleTimeout è il silenzio massimo (nessun token NÉ reasoning) oltre il
-// quale lo stream è considerato in stallo, la chiamata viene abortita (context
+// maxNoStartRetries: retry quando lo stream NON parte mai (nessun token/evento
+// entro il timeout, errStreamNoStart). Uno stream che non parte ripetutamente è
+// quasi sempre un provider giù/degradato, non un glitch transitorio: 1 solo retry
+// per fallire in fretta con un messaggio chiaro invece di sprecare minuti.
+const maxNoStartRetries = 1
+
+// defaultStreamIdleTimeout è il silenzio massimo (nessun token NÉ reasoning) oltre
+// il quale lo stream è considerato in stallo, la chiamata abortita (context
 // cancellato) e ritentata. I 3 hang osservati (shakedown 07/06) erano >4 min di
-// silenzio assoluto col processo appeso indefinitamente; il primo evento
-// (reasoning) di norma arriva entro secondi. Generoso per non falsare un warmup
-// lento — tanto il retry recupera. var (non const) per abbassarlo nei test.
-var streamIdleTimeout = 180 * time.Second
+// silenzio col processo appeso; il primo evento di norma arriva entro ~1-2 min.
+// Generoso per non falsare un warmup lento. Override via config (StreamIdleTimeoutSec).
+const defaultStreamIdleTimeout = 180 * time.Second
 
-// errStreamIdle: lo stream non ha prodotto alcun evento entro streamIdleTimeout.
-// Stallo del gateway/modello, recuperabile con un retry (vedi streamWithRetries).
-var errStreamIdle = errors.New("runner: stream in stallo (nessun dato dal provider entro il timeout di inattività)")
+// errStreamIdle: stallo DOPO che lo stream era partito (qualche evento ricevuto,
+// poi silenzio). Possibile glitch transitorio → retry fino a maxTransient.
+var errStreamIdle = errors.New("runner: stream in stallo a metà generazione (silenzio oltre il timeout)")
+
+// errStreamNoStart: nessun evento ricevuto entro il timeout (lo stream non è mai
+// partito). Segnale forte di provider degradato/non raggiungibile → pochi retry.
+var errStreamNoStart = errors.New("runner: il provider non ha emesso alcun token (stream mai partito entro il timeout)")
+
+// resolveStreamTuning ricava idle-timeout e numero di retry transitori dal config
+// master (campi opzionali stream_idle_timeout_sec / stream_max_retries); se
+// 0/assenti usa i default. Permette di tarare l'anti-stallo senza ricompilare.
+func resolveStreamTuning(master *config.Master) (time.Duration, int) {
+	idle := defaultStreamIdleTimeout
+	maxTransient := defaultMaxTransientRetries
+	if master != nil {
+		if master.StreamIdleTimeoutSec > 0 {
+			idle = time.Duration(master.StreamIdleTimeoutSec) * time.Second
+		}
+		if master.StreamMaxRetries > 0 {
+			maxTransient = master.StreamMaxRetries
+		}
+	}
+	return idle, maxTransient
+}
 
 // resolveOutputBudget decide il max_tokens INIZIALE da inviare.
 //
@@ -765,10 +789,20 @@ func isStderrTTY() bool {
 //
 // Le chiamate sono "quiet" (l'errore non è loggato come warning qui): gli esiti
 // attesi/recuperabili sono passi calmi; l'errore finale lo logga il chiamante.
-func streamWithRetries(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, effMaxTokens int, log *runlog.Logger, bodyWriter, reasoningWriter io.Writer) (string, string, error) {
-	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+// Famiglie di retry, tutte limitate (terminazione garantita dal for):
+//  1. CALIBRAZIONE (context overflow): ricalcola max_tokens sul conteggio reale.
+//  2. NO-START (errStreamNoStart): lo stream non parte mai → provider probabilmente
+//     giù → max maxNoStartRetries (1), poi errore CHIARO ("non è un problema dei
+//     tuoi file").
+//  3. STALLO MID-STREAM (errStreamIdle) e OUTPUT VUOTO: possibili transitori →
+//     max maxTransient (configurabile via StreamMaxRetries, default 2).
+//
+// idleTimeout e maxTransient arrivano dal config (resolveStreamTuning).
+func streamWithRetries(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, effMaxTokens int, log *runlog.Logger, bodyWriter, reasoningWriter io.Writer, idleTimeout time.Duration, maxTransient int) (string, string, error) {
+	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, log, bodyWriter, reasoningWriter, idleTimeout, true)
 	lastRequested := effMaxTokens
 	transient := 0
+	noStart := 0
 	for attempt := 1; attempt <= maxProviderRetries; attempt++ {
 		switch {
 		case err != nil:
@@ -785,31 +819,41 @@ func streamWithRetries(prov provider.LLMProvider, composed *prompt.Composed, p *
 				log.Info("calibrazione budget output (giro %d/%d): il provider conta %d token di prompt → max_tokens=%d (buffer %d), procedo.",
 					attempt, maxProviderRetries, realInput, retryMax, outputBuffer)
 				lastRequested = retryMax
-				body, stato, err = callProviderWithStreaming(prov, composed, p, retryMax, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+				body, stato, err = callProviderWithStreaming(prov, composed, p, retryMax, log, bodyWriter, reasoningWriter, idleTimeout, true)
 				continue
 			}
-			// (2) Stallo dello stream → ritenta la stessa richiesta.
+			// (2) Stream MAI partito → provider probabilmente giù: pochi retry, errore chiaro.
+			if errors.Is(err, errStreamNoStart) {
+				if noStart >= maxNoStartRetries {
+					return body, stato, fmt.Errorf("%s non ha emesso alcun token in %d tentativi (~%s di attesa ciascuno): il provider è degradato o non risponde. NON è un problema dei tuoi file — riprova più tardi o valuta un altro modello", prov.Name(), noStart+1, idleTimeout)
+				}
+				noStart++
+				log.Info("il provider non ha emesso alcun token (possibile degrado/outage): ritento (tentativo %d/%d).", noStart, maxNoStartRetries)
+				body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, idleTimeout, true)
+				continue
+			}
+			// (3) Stallo a metà generazione → possibile transitorio: ritenta.
 			if errors.Is(err, errStreamIdle) {
-				if transient >= maxTransientRetries {
+				if transient >= maxTransient {
 					return body, stato, err
 				}
 				transient++
-				log.Info("stream in stallo: ritento la chiamata (tentativo transitorio %d/%d, budget %d invariato).", transient, maxTransientRetries, lastRequested)
-				body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+				log.Info("stream in stallo a metà generazione: ritento la chiamata (tentativo transitorio %d/%d, budget %d invariato).", transient, maxTransient, lastRequested)
+				body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, idleTimeout, true)
 				continue
 			}
 			// Errore non recuperabile (stream error reale, HTTP, ecc.): esci.
 			return body, stato, err
 		case strings.TrimSpace(body) == "":
 			// (3) Output vuoto: il modello thinking ha chiuso con 0 token (budget
-			// speso nel reasoning). Ritenta; esaurito il budget transitorio, lascia
-			// che finalizeOutput lo marchi 'vuoto'.
-			if transient >= maxTransientRetries {
+			// speso nel reasoning). Ritenta; esaurito il budget, lascia che
+			// finalizeOutput lo marchi 'vuoto'.
+			if transient >= maxTransient {
 				return body, stato, nil
 			}
 			transient++
-			log.Info("il modello ha restituito 0 token di output (budget esaurito nel reasoning): ritento (tentativo transitorio %d/%d).", transient, maxTransientRetries)
-			body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+			log.Info("il modello ha restituito 0 token di output (budget esaurito nel reasoning): ritento (tentativo transitorio %d/%d).", transient, maxTransient)
+			body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, idleTimeout, true)
 			continue
 		default:
 			// Successo con output non vuoto.
@@ -1026,6 +1070,7 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 	started := time.Now()
 	var tokenCount int
 	var firstToken bool
+	var sawEvent bool // true appena arriva QUALSIASI evento: distingue stallo mid-stream da stream-mai-partito
 	// Diagnostica modelli "thinking" (es. kimi): reasoning_content streamato a
 	// parte dal contenuto + finish_reason. Spiega TTFT lunghi e risposte vuote.
 	var reasoningChars int
@@ -1100,19 +1145,24 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 					tokenCount, elapsed.Round(time.Second), rate)
 			}
 		case <-idleC:
-			// Nessun evento entro idleTimeout: stream in stallo. Logghiamo (è una
-			// causa azionabile, non silenziosa) e ritorniamo errStreamIdle; il
-			// chiamante cancella il context (chiude la connessione) e ritenta.
+			// Nessun evento entro idleTimeout. Distinguiamo: stream MAI partito
+			// (errStreamNoStart, probabile provider giù → fail veloce) vs stallo a
+			// metà (errStreamIdle, possibile transitorio → più retry). Il chiamante
+			// cancella il context (chiude la connessione) e ritenta.
 			log.Warn("nessun dato dal modello da %s: stream considerato in stallo, interrompo (verrà ritentato).", idleTimeout)
 			log.StreamEnd(tokenCount, time.Since(started))
-			return b.String(), stato, errStreamIdle
+			if sawEvent {
+				return b.String(), stato, errStreamIdle
+			}
+			return b.String(), stato, errStreamNoStart
 		case ev, ok := <-ch:
 			if !ok {
 				log.StreamEnd(tokenCount, time.Since(started))
 				finalize()
 				return b.String(), stato, nil
 			}
-			resetIdle() // un evento è arrivato: lo stream è vivo, riarma l'idle-timeout
+			resetIdle()     // un evento è arrivato: lo stream è vivo, riarma l'idle-timeout
+			sawEvent = true // lo stream è partito: un eventuale stallo successivo è "mid-stream"
 			if ev.Err != nil {
 				log.StreamEnd(tokenCount, time.Since(started))
 				if !quiet {

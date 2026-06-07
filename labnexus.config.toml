@@ -53,6 +53,18 @@ eurouter_api_key = ""
 # Default: http://localhost:11434 (override via env LABNEXUS_OLLAMA_ENDPOINT).
 ollama_endpoint = "http://localhost:11434"
 
+# Tuning anti-stallo dello streaming (opzionali). Lasciali commentati per usare i
+# default del codice; servono quando eurouter è lento/degradato.
+#   stream_idle_timeout_sec: secondi di silenzio totale (nessun token NÉ reasoning)
+#     oltre i quali lo stream è considerato in stallo, interrotto e ritentato
+#     (default 180). Il TTFT normale osservato è ~1-2 min → 180 non falsa un warmup
+#     lento; alza se eurouter è abitualmente più lento.
+#   stream_max_retries: retry su stallo a METÀ generazione o output vuoto (default 2).
+#     Lo stallo PRIMA del primo token (provider giù) usa sempre 1 solo retry, per
+#     fallire in fretta con un messaggio chiaro invece di sprecare minuti.
+# stream_idle_timeout_sec = 180
+# stream_max_retries = 2
+
 # Sprint 1.5.D: generazione PDF accoppiato all'output MD.
 # Default attivo per tutte le 7 capability. Override per-capability nel
 # _labnexus.toml della cartella (sezione [pdf] enabled = false). Override

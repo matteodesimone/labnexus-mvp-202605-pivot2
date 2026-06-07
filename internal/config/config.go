@@ -17,15 +17,24 @@ import (
 // I campi sono opzionali (zero-value detection a runtime); valori non setted
 // non vengono propagati al merge.
 type Master struct {
-	Provider       string    `toml:"provider"`
-	Modello        string    `toml:"modello"`
-	Temperature    float64   `toml:"temperature"`
-	MaxTokens      int       `toml:"max_tokens"`
-	ContextWindow  int       `toml:"context_window"`
+	Provider       string     `toml:"provider"`
+	Modello        string     `toml:"modello"`
+	Temperature    float64    `toml:"temperature"`
+	MaxTokens      int        `toml:"max_tokens"`
+	ContextWindow  int        `toml:"context_window"`
 	EurouterAPIKey string     `toml:"eurouter_api_key"`
 	OllamaEndpoint string     `toml:"ollama_endpoint"`
 	PDF            PDFConfig  `toml:"pdf"`
 	Docx           DocxConfig `toml:"docx"`
+
+	// Tuning anti-stallo dello streaming (opzionali, 0/assente = default del codice).
+	// StreamIdleTimeoutSec: secondi di silenzio totale (nessun token) oltre i quali
+	// lo stream è considerato in stallo e la chiamata viene interrotta+ritentata
+	// (default 180). StreamMaxRetries: numero di retry su stallo a metà generazione
+	// o output vuoto (default 2). Lo stallo PRIMA del primo token (provider giù) ne
+	// usa sempre 1 solo, per fallire in fretta.
+	StreamIdleTimeoutSec int `toml:"stream_idle_timeout_sec"`
+	StreamMaxRetries     int `toml:"stream_max_retries"`
 }
 
 // PDFConfig controlla la generazione del PDF accoppiato all'output MD.
@@ -107,7 +116,7 @@ func Merge(master *Master, p *profile.Profile) *profile.Profile {
 // una volta per strato che deve sovrascrivere (es. il `_labnexus.toml` del job
 // sopra il profilo già risolto) — catena config → profilo → _labnexus.
 //
-// Essendo presence-aware, distingue "campo a 0/'' ESPLICITO" da "omesso" e
+// Essendo presence-aware, distingue "campo a 0/” ESPLICITO" da "omesso" e
 // risolve così la limitazione di Merge sui campi numerici (vedi commento sopra):
 // `temperature = 0.0` nel file viene applicato, omesso viene ereditato.
 //

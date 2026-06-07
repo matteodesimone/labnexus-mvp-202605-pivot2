@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/labnexus/labnexus/internal/provider"
 	"github.com/labnexus/labnexus/internal/runlog"
@@ -20,8 +21,8 @@ func TestDrainStream_ReasoningLoggedNotInOutput(t *testing.T) {
 	ch <- provider.StreamEvent{Done: true}
 	close(ch)
 
-	var shown bytes.Buffer
-	body, stato, err := drainStreamWithBody(ch, runlog.New(io.Discard), &shown, false)
+	var shown, reasoningOut bytes.Buffer
+	body, stato, err := drainStreamWithBody(ch, runlog.New(io.Discard), &shown, &reasoningOut, false, time.Minute)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}
@@ -36,5 +37,13 @@ func TestDrainStream_ReasoningLoggedNotInOutput(t *testing.T) {
 		if !strings.Contains(s, want) {
 			t.Errorf("mostrato/loggato deve contenere %q, got %q", want, s)
 		}
+	}
+	// reasoningWriter (file affiancato) riceve SOLO il reasoning pulito, mai il content.
+	rs := reasoningOut.String()
+	if !strings.Contains(rs, "STO-PENSANDO") || !strings.Contains(rs, "ancora") {
+		t.Errorf("reasoningWriter deve contenere il reasoning, got %q", rs)
+	}
+	if strings.Contains(rs, "RISPOSTA-FINALE") {
+		t.Errorf("reasoningWriter NON deve contenere il content (è il file di ragionamento), got %q", rs)
 	}
 }

@@ -26,35 +26,37 @@ import (
 // Convenzione critica per evitare collisioni come `stato` (smascherata
 // Fetta 2 review):
 //
-//  ENGINE-OWNED (popolato a runtime dal runner, valori autoritativi):
-//    - profilo            (string)  — nome del profile usato
-//    - modello            (string)  — modello LLM (post-merge col master)
-//    - provider           (string)  — provider effettivo (ollama|eurouter)
-//    - data_esecuzione    (RFC3339) — timestamp di inizio run
-//    - durata_secondi     (float64) — wall-clock secondi
-//    - token_stimati      (int)     — stima char/4 del prompt composto
-//    - file_input         ([]string) — file processati nell'input dir
-//    - stato              (string)  — "completato" | "interrotto"
-//    - log_file           (string, optional) — path relativo al .log accoppiato
-//                                              (Sprint 1.5.C, FR-34, NFR-11 audit trail ISO 17025)
-//    - valutazione_denis  (string, optional) — popolato dal runner solo se non
-//                                              presente già nei ProfileDefaults
+//	ENGINE-OWNED (popolato a runtime dal runner, valori autoritativi):
+//	  - profilo            (string)  — nome del profile usato
+//	  - modello            (string)  — modello LLM (post-merge col master)
+//	  - provider           (string)  — provider effettivo (ollama|eurouter)
+//	  - data_esecuzione    (RFC3339) — timestamp di inizio run
+//	  - durata_secondi     (float64) — wall-clock secondi
+//	  - token_stimati      (int)     — stima conservativa char/3,2 (densità reale
+//	                                   kimi) del prompt composto; più vicina al
+//	                                   conteggio reale del provider della char/4
+//	  - file_input         ([]string) — file processati nell'input dir
+//	  - stato              (string)  — "completato" | "interrotto"
+//	  - log_file           (string, optional) — path relativo al .log accoppiato
+//	                                            (Sprint 1.5.C, FR-34, NFR-11 audit trail ISO 17025)
+//	  - valutazione_denis  (string, optional) — popolato dal runner solo se non
+//	                                            presente già nei ProfileDefaults
 //
-//  PROFILE-DEFAULT-OWNED (popolato dal profilo via output.frontmatter_default,
-//                         merged DOPO i campi engine; engine vince in collisione):
-//    - tipo               — convenzione output del profilo (es. "bozza_revisione",
-//                           "capa_pack", "audit_checklist", ecc.)
-//    - stato_qm           — convenzione SGQ (es. "bozza_da_validare_qm")
-//    - profilo_labnexus   — duplicato del campo engine, mantenuto per backward
-//                           compat con script di Denis
-//    - (altri campi custom del profilo specifico)
+//	PROFILE-DEFAULT-OWNED (popolato dal profilo via output.frontmatter_default,
+//	                       merged DOPO i campi engine; engine vince in collisione):
+//	  - tipo               — convenzione output del profilo (es. "bozza_revisione",
+//	                         "capa_pack", "audit_checklist", ecc.)
+//	  - stato_qm           — convenzione SGQ (es. "bozza_da_validare_qm")
+//	  - profilo_labnexus   — duplicato del campo engine, mantenuto per backward
+//	                         compat con script di Denis
+//	  - (altri campi custom del profilo specifico)
 //
-//  EXTERNAL-OWNED (popolato da Denis manualmente in fase L2 validation post-run):
-//    - valutazione_denis  — "validata" | "validata_con_riserva" | "non_validata"
-//                           (Denis edita il frontmatter del file output dopo aver
-//                           rivisto il contenuto; non viene MAI sovrascritto dal
-//                           runner se popolato dal profilo o dall'umano)
-//    - (note manuali, esiti review, ecc.)
+//	EXTERNAL-OWNED (popolato da Denis manualmente in fase L2 validation post-run):
+//	  - valutazione_denis  — "validata" | "validata_con_riserva" | "non_validata"
+//	                         (Denis edita il frontmatter del file output dopo aver
+//	                         rivisto il contenuto; non viene MAI sovrascritto dal
+//	                         runner se popolato dal profilo o dall'umano)
+//	  - (note manuali, esiti review, ecc.)
 //
 // Regola di precedenza in caso di collisione: ENGINE > PROFILE-DEFAULT > EXTERNAL.
 // L'EXTERNAL viene preservato solo se non è popolato da nessuno dei due.

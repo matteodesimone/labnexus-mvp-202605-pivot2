@@ -17,7 +17,7 @@ func TestFinalizeOutput_EmptyBody(t *testing.T) {
 	p := &profile.Profile{Modello: "kimi-k2.6"}
 
 	for _, raw := range []string{"", "   ", "\n\t  \n"} {
-		body, stato, empty := finalizeOutput(raw, "completato", p, "eurouter")
+		body, stato, empty := finalizeOutput(raw, "", "completato", p, "eurouter")
 		if !empty {
 			t.Errorf("body %q deve essere rilevato come vuoto", raw)
 		}
@@ -33,9 +33,30 @@ func TestFinalizeOutput_EmptyBody(t *testing.T) {
 	}
 }
 
+// content=0 MA con reasoning: l'.md deve contenere un alert in testa + il
+// ragionamento integrale, così Denis legge tutto (richiesta 07/06). stato "vuoto".
+func TestFinalizeOutput_EmptyBodyWithReasoning(t *testing.T) {
+	p := &profile.Profile{Modello: "kimi-k2.6"}
+	reasoning := "Table columns:\n| Sezione | Versione |\nRows:\n1. RT-23 Scope"
+	body, stato, empty := finalizeOutput("   ", reasoning, "completato", p, "eurouter")
+	if !empty || stato != "vuoto" {
+		t.Errorf("content vuoto → empty=true, stato=vuoto; got empty=%v stato=%q", empty, stato)
+	}
+	if !strings.Contains(body, "DA RIVEDERE") || !strings.Contains(body, "⚠️") {
+		t.Errorf("manca l'alert in testa, got:\n%s", body)
+	}
+	if !strings.Contains(body, "RT-23 Scope") {
+		t.Errorf("il ragionamento integrale deve finire nell'.md, got:\n%s", body)
+	}
+	// L'alert deve precedere il ragionamento.
+	if strings.Index(body, "DA RIVEDERE") > strings.Index(body, "RT-23 Scope") {
+		t.Error("l'alert deve stare DAVANTI al ragionamento")
+	}
+}
+
 func TestFinalizeOutput_NonEmptyUnchanged(t *testing.T) {
 	p := &profile.Profile{Modello: "kimi-k2.6"}
-	body, stato, empty := finalizeOutput("## 1. Sintesi\nContenuto reale.", "completato", p, "eurouter")
+	body, stato, empty := finalizeOutput("## 1. Sintesi\nContenuto reale.", "", "completato", p, "eurouter")
 	if empty {
 		t.Error("un body con contenuto non deve essere marcato vuoto")
 	}
@@ -79,7 +100,7 @@ func TestLogInputAudit_RecordsWhatWasSent(t *testing.T) {
 		"KB system context: 2 file",
 		"escluso dall'input", "Prompt_INPUT.rtf",
 		"NON parsato", "rotto.pdf",
-		"69485",
+		"86856", // stima totale: conservativePromptTokens(69485) = 69485×5/4, char/3,2 (#3)
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("il log di audit deve contenere %q\n--- log ---\n%s", want, out)

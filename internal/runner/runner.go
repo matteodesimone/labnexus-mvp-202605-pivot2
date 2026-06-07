@@ -5,6 +5,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -412,40 +413,21 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
 	logProviderRequest(multiLog, prov, p, effMaxTokens, check.Tokens)
-	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, multiLog, bodyWriter, true)
-	// Backstop di calibrazione provider-authoritative (LOOP). La prima chiamata usa
-	// la stima accurata (char/3,2) e di norma ENTRA. Se un contenuto è più denso e
-	// sfora, il provider ci dice quanti input token conta e impostiamo max_tokens =
-	// conteggio_reale + buffer (NESSUNA nostra stima determina il risultato). È un
-	// loop perché al primo errore il conteggio può essere PER DIFETTO ("at least N");
-	// l'esatto arriva dopo. Le chiamate sono "quiet": l'overflow di calibrazione NON
-	// è loggato come errore (lo gestiamo qui come passo calmo), così l'audit ISO resta
-	// pulito. Stop quando entra, o il reale non lascia il minimo (errore chiaro), o
-	// non c'è progresso, o si esauriscono i giri.
-	lastRequested := effMaxTokens
-	for attempt := 1; err != nil && attempt <= maxProviderRetries; attempt++ {
-		realInput, ok := parseContextOverflow(err, lastRequested)
-		if !ok {
-			multiLog.Warn("errore dal provider (non di context length): %v", err)
-			break
-		}
-		retryMax, fits := retryOutputBudget(realInput, p.ContextWindow)
-		if !fits {
-			err = fmt.Errorf("runner: input troppo grande — il provider conta %d token di prompt; oltre il limite del modello (%d) non restano i %d token minimi di output. Riduci i file di input", realInput, p.ContextWindow, minOutputBudget)
-			break
-		}
-		if retryMax >= lastRequested {
-			multiLog.Warn("calibrazione budget non converge (il provider riporta %d token di input senza progresso): mi fermo.", realInput)
-			break
-		}
-		multiLog.Info("calibrazione budget output (giro %d/%d): il provider conta %d token di prompt → max_tokens=%d (buffer %d), procedo.",
-			attempt, maxProviderRetries, realInput, retryMax, outputBuffer)
-		lastRequested = retryMax
-		body, stato, err = callProviderWithStreaming(prov, composed, p, retryMax, multiLog, bodyWriter, true)
-	}
+	var reasoningBuf strings.Builder
+	body, stato, err := streamWithRetries(prov, composed, p, effMaxTokens, multiLog, bodyWriter, &reasoningBuf)
 	duration := time.Since(started)
 	multiLog.EndStep()
+	// Salva SEMPRE il canale reasoning in un .md affiancato (richiesta 07/06): il
+	// "pensiero" del modello — che a volte contiene il deliverable incastrato lì
+	// con content=0, come nel caso A/142750 — non va perso. Indipendente dall'esito.
+	if sc := writeReasoningSidecar(cfg.OutputDir, baseName, reasoningBuf.String(), multiLog); sc != "" {
+		multiLog.Info("ragionamento del modello salvato a parte: %s", sc)
+	}
 	if err != nil {
+		// L'audit ISO deve registrare la causa tecnica del fallimento: le chiamate
+		// al provider girano "quiet" (lì l'errore non è loggato come warning),
+		// quindi lo registriamo qui prima di abortire (gap audit, code-review 07/06).
+		multiLog.Warn("run fallito dopo i tentativi del provider: %v", err)
 		return nil, err
 	}
 	// Sanitizzazione: alcuni modelli (es. Qwen3.5-122B sul profilo revisione
@@ -460,9 +442,9 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	// Non è un "completato": lo segnaliamo come 'vuoto', scriviamo un .md con la
 	// spiegazione (invece di un file vuoto) e NON generiamo PDF/DOCX vuoti.
 	var emptyOutput bool
-	body, stato, emptyOutput = finalizeOutput(body, stato, p, prov.Name())
+	body, stato, emptyOutput = finalizeOutput(body, reasoningBuf.String(), stato, p, prov.Name())
 	if emptyOutput {
-		multiLog.Warn("il modello non ha restituito output (0 token / body vuoto): run marcato 'vuoto', niente PDF/DOCX. Riprova; se persiste, cambia modello o segnala.")
+		multiLog.Warn("il modello non ha restituito output finale (0 token di content): l'.md contiene un alert + il ragionamento del modello (anche in ..._ragionamento.md), niente PDF/DOCX. Riprova; se persiste, valuta diversamente.")
 	}
 	logRelPath := baseName + ".log"
 	outPath, fm, err := writeOutput(cfg, p, prov, parsed, check, body, stato, duration, started, multiLog, logRelPath)
@@ -492,7 +474,7 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	return &Result{
 		OutputPath:  outPath,
 		ExitCode:    exitCodeFor(stato),
-		TokensUsed:  check.Tokens,
+		TokensUsed:  conservativePromptTokens(check.Tokens),
 		DurationSec: duration.Seconds(),
 	}, nil
 }
@@ -522,6 +504,26 @@ const minOutputBudget = 16000
 // overflow. Loop perché al primo errore il provider può riportare un conteggio "at
 // least N" PER DIFETTO; l'esatto arriva dopo — si itera finché la richiesta entra.
 const maxProviderRetries = 4
+
+// maxTransientRetries limita i retry su fallimenti TRANSITORI e non-deterministici
+// del modello "thinking": stream in stallo (errStreamIdle) e output vuoto (il
+// reasoning ha consumato tutto il budget). A temperature fissa 1.0 su prompt al
+// limite questi esiti sono una lotteria; un retry "pulito" della stessa richiesta
+// ha buone probabilità di riuscire (shakedown 07/06: 3 run su 5 erano stalli
+// pre-primo-token recuperati a mano). Distinto da maxProviderRetries (calibrazione).
+const maxTransientRetries = 2
+
+// streamIdleTimeout è il silenzio massimo (nessun token NÉ reasoning) oltre il
+// quale lo stream è considerato in stallo, la chiamata viene abortita (context
+// cancellato) e ritentata. I 3 hang osservati (shakedown 07/06) erano >4 min di
+// silenzio assoluto col processo appeso indefinitamente; il primo evento
+// (reasoning) di norma arriva entro secondi. Generoso per non falsare un warmup
+// lento — tanto il retry recupera. var (non const) per abbassarlo nei test.
+var streamIdleTimeout = 180 * time.Second
+
+// errStreamIdle: lo stream non ha prodotto alcun evento entro streamIdleTimeout.
+// Stallo del gateway/modello, recuperabile con un retry (vedi streamWithRetries).
+var errStreamIdle = errors.New("runner: stream in stallo (nessun dato dal provider entro il timeout di inattività)")
 
 // resolveOutputBudget decide il max_tokens INIZIALE da inviare.
 //
@@ -748,10 +750,85 @@ func isStderrTTY() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-// quiet=true: l'eventuale errore di stream NON viene loggato come warning (il
-// chiamante lo gestisce — es. l'overflow di calibrazione, che è un passo atteso).
-func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, maxTokens int, log *runlog.Logger, bodyWriter io.Writer, quiet bool) (string, string, error) {
-	ch, err := prov.Stream(context.Background(), composed.System, composed.User, provider.Options{
+// streamWithRetries chiama il provider e gestisce TUTTI i retry, ritornando il
+// body finale, lo stato e l'eventuale errore non recuperabile.
+//
+// Tre famiglie di retry, tutte limitate (terminazione garantita dal for):
+//  1. CALIBRAZIONE (context overflow): il provider dice quanti token conta nel
+//     prompt → ricalcoliamo max_tokens = reale + buffer e ritentiamo. Loop perché
+//     il primo errore può dare un lower bound; l'esatto arriva dopo.
+//  2. STALLO (errStreamIdle): nessun evento entro streamIdleTimeout → ritentiamo
+//     la stessa richiesta (il context è già stato cancellato/ripulito).
+//  3. OUTPUT VUOTO (0 token, finish_reason stop): su modelli thinking il reasoning
+//     può esaurire il budget; a temperature 1.0 è non-deterministico, un retry
+//     pulito spesso riesce — è la sola leva quando il prompt non si può ridurre.
+//
+// Le chiamate sono "quiet" (l'errore non è loggato come warning qui): gli esiti
+// attesi/recuperabili sono passi calmi; l'errore finale lo logga il chiamante.
+func streamWithRetries(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, effMaxTokens int, log *runlog.Logger, bodyWriter, reasoningWriter io.Writer) (string, string, error) {
+	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+	lastRequested := effMaxTokens
+	transient := 0
+	for attempt := 1; attempt <= maxProviderRetries; attempt++ {
+		switch {
+		case err != nil:
+			// (1) Context overflow → ricalibra max_tokens sul conteggio reale.
+			if realInput, ok := parseContextOverflow(err, lastRequested); ok {
+				retryMax, fits := retryOutputBudget(realInput, p.ContextWindow)
+				if !fits {
+					return body, stato, fmt.Errorf("runner: input troppo grande — il provider conta %d token di prompt; oltre il limite del modello (%d) non restano i %d token minimi di output. Riduci i file di input", realInput, p.ContextWindow, minOutputBudget)
+				}
+				if retryMax >= lastRequested {
+					log.Warn("calibrazione budget non converge (il provider riporta %d token di input senza progresso): mi fermo.", realInput)
+					return body, stato, err
+				}
+				log.Info("calibrazione budget output (giro %d/%d): il provider conta %d token di prompt → max_tokens=%d (buffer %d), procedo.",
+					attempt, maxProviderRetries, realInput, retryMax, outputBuffer)
+				lastRequested = retryMax
+				body, stato, err = callProviderWithStreaming(prov, composed, p, retryMax, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+				continue
+			}
+			// (2) Stallo dello stream → ritenta la stessa richiesta.
+			if errors.Is(err, errStreamIdle) {
+				if transient >= maxTransientRetries {
+					return body, stato, err
+				}
+				transient++
+				log.Info("stream in stallo: ritento la chiamata (tentativo transitorio %d/%d, budget %d invariato).", transient, maxTransientRetries, lastRequested)
+				body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+				continue
+			}
+			// Errore non recuperabile (stream error reale, HTTP, ecc.): esci.
+			return body, stato, err
+		case strings.TrimSpace(body) == "":
+			// (3) Output vuoto: il modello thinking ha chiuso con 0 token (budget
+			// speso nel reasoning). Ritenta; esaurito il budget transitorio, lascia
+			// che finalizeOutput lo marchi 'vuoto'.
+			if transient >= maxTransientRetries {
+				return body, stato, nil
+			}
+			transient++
+			log.Info("il modello ha restituito 0 token di output (budget esaurito nel reasoning): ritento (tentativo transitorio %d/%d).", transient, maxTransientRetries)
+			body, stato, err = callProviderWithStreaming(prov, composed, p, lastRequested, log, bodyWriter, reasoningWriter, streamIdleTimeout, true)
+			continue
+		default:
+			// Successo con output non vuoto.
+			return body, stato, nil
+		}
+	}
+	return body, stato, err
+}
+
+// callProviderWithStreaming apre lo stream e lo drena. Crea un context
+// cancellabile: su idle-timeout (stream in stallo) o errore, il defer cancel()
+// aborta la richiesta HTTP e sblocca la goroutine del provider (che chiude
+// body+canale via i suoi defer) — senza, resterebbe appesa per sempre. quiet=true:
+// l'eventuale errore di stream NON viene loggato come warning (il chiamante lo
+// gestisce — es. overflow di calibrazione o stallo da ritentare).
+func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, maxTokens int, log *runlog.Logger, bodyWriter, reasoningWriter io.Writer, idleTimeout time.Duration, quiet bool) (string, string, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ch, err := prov.Stream(ctx, composed.System, composed.User, provider.Options{
 		Modello:       p.Modello,
 		Temperature:   p.Temperature,
 		MaxTokens:     maxTokens,
@@ -760,8 +837,7 @@ func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Compo
 	if err != nil {
 		return "", "", err
 	}
-	body, stato, derr := drainStreamWithBody(ch, log, bodyWriter, quiet)
-	return body, stato, derr
+	return drainStreamWithBody(ch, log, bodyWriter, reasoningWriter, quiet, idleTimeout)
 }
 
 func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, parsed *input.ParsedResult, check *tokens.CheckResult, body, stato string, duration time.Duration, started time.Time, log *runlog.Logger, logRelPath string) (string, *output.Frontmatter, error) {
@@ -777,7 +853,7 @@ func writeOutput(cfg Config, p *profile.Profile, prov provider.LLMProvider, pars
 		Provider:        prov.Name(),
 		DataEsecuzione:  started.Format(time.RFC3339),
 		DurataSecondi:   duration.Seconds(),
-		TokenStimati:    check.Tokens,
+		TokenStimati:    conservativePromptTokens(check.Tokens),
 		FileInput:       fileNames,
 		Stato:           stato,
 		LogFile:         logRelPath,
@@ -798,12 +874,21 @@ func exitCodeFor(stato string) int {
 	return 1
 }
 
-// finalizeOutput gestisce la risposta vuota del modello. Se il body è
-// vuoto/solo-whitespace ritorna un .md con la spiegazione, stato "vuoto" ed
-// empty=true; altrimenti lascia tutto invariato.
-func finalizeOutput(body, stato string, p *profile.Profile, provName string) (string, string, bool) {
+// finalizeOutput gestisce la risposta del modello con 0 token di content.
+// Se il body (content) è vuoto/solo-whitespace:
+//   - se c'è reasoning: l'.md diventa un ALERT in testa + il ragionamento integrale
+//     del modello, così Denis legge comunque TUTTO (a volte il deliverable è
+//     incastrato lì, vedi A/142750) anche se non è nella forma corretta;
+//   - se non c'è reasoning: placeholder esplicativo "0 token".
+//
+// In entrambi i casi stato="vuoto" ed empty=true (niente PDF/DOCX: non è un
+// deliverable validato). Con content presente, lascia tutto invariato.
+func finalizeOutput(body, reasoning, stato string, p *profile.Profile, provName string) (string, string, bool) {
 	if strings.TrimSpace(body) != "" {
 		return body, stato, false
+	}
+	if strings.TrimSpace(reasoning) != "" {
+		return emptyWithReasoningNotice(p.Modello, provName, reasoning), "vuoto", true
 	}
 	return emptyBodyNotice(p.Modello, provName), "vuoto", true
 }
@@ -819,6 +904,47 @@ func emptyBodyNotice(modello, provName string) string {
 		"> Possibili cause: instabilità o cold-start del modello, sovraccarico del\n"+
 		"> provider. **Riprova l'esecuzione.** Se persiste, valuta un modello diverso\n"+
 		"> o segnala al referente tecnico.\n", modello, provName)
+}
+
+// emptyWithReasoningNotice è il contenuto .md quando il modello chiude con 0 token
+// di content MA ha prodotto reasoning: un alert ben visibile in testa + il
+// ragionamento integrale, così Denis legge comunque TUTTO (a volte il deliverable
+// è incastrato lì, vedi A/142750) pur non essendo nella forma corretta. Il body
+// del reasoning va dopo il banner e dopo il frontmatter (stato: vuoto).
+func emptyWithReasoningNotice(modello, provName, reasoning string) string {
+	return fmt.Sprintf("> # ⚠️ OUTPUT NON NEL FORMATO CORRETTO — DA RIVEDERE\n>\n"+
+		"> Il modello %q via %s **non ha prodotto un output finale** (0 token di\n"+
+		"> contenuto): si è fermato mentre stava ancora *ragionando*. Quello che segue è\n"+
+		"> il suo **ragionamento integrale** — spesso contiene già il lavoro utile (a\n"+
+		"> volte la bozza del documento è proprio qui dentro), ma **NON è un deliverable\n"+
+		"> validato e può essere incompleto**. Leggilo, recupera ciò che serve e, se\n"+
+		"> necessario, **rilancia** la capability.\n>\n"+
+		"> _Lo stesso ragionamento è anche nel file `…_ragionamento.md` accoppiato e nel `.log`._\n\n"+
+		"---\n\n%s\n", modello, provName, strings.TrimSpace(reasoning))
+}
+
+// writeReasoningSidecar scrive il canale reasoning del modello in un .md
+// affiancato all'output (<baseName>_ragionamento.md). Sempre, quando c'è
+// reasoning (richiesta Matteo 07/06): il "pensiero" del modello — che a volte
+// contiene il deliverable "incastrato" lì con content=0 (caso A/142750) — non va
+// perso. Best-effort: un errore di scrittura non rompe il run. Ritorna il path
+// scritto, o "" se non c'era reasoning / outputDir vuoto / errore.
+func writeReasoningSidecar(outputDir, baseName, reasoning string, log *runlog.Logger) string {
+	if outputDir == "" || strings.TrimSpace(reasoning) == "" {
+		return ""
+	}
+	sidecar := filepath.Join(outputDir, baseName+"_ragionamento.md")
+	content := "# Ragionamento del modello (reasoning)\n\n" +
+		"> ⚠️ Questo è il *ragionamento interno* del modello per questo run, **non**\n" +
+		"> l'output validato — può essere **incompleto**. L'output finale (se prodotto)\n" +
+		"> è nell'`.md` accoppiato. A volte il modello scrive qui il deliverable senza\n" +
+		"> emetterlo come output: in quel caso l'`.md` risulta vuoto ma il lavoro è qui\n" +
+		"> sotto, da rivedere.\n\n---\n\n" + reasoning + "\n"
+	if err := os.WriteFile(sidecar, []byte(content), 0o644); err != nil {
+		log.Warn("impossibile scrivere il file di ragionamento accoppiato (%v)", err)
+		return ""
+	}
+	return sidecar
 }
 
 // logInputAudit registra nel .log COSA è stato inviato al modello: KB, dati,
@@ -846,7 +972,7 @@ func logInputAudit(log *runlog.Logger, kbTexts []string, parsed *input.ParsedRes
 	for _, sk := range parsed.Skipped {
 		log.Warn("  NON parsato (saltato): %s — %s", sk.Name, sk.Reason)
 	}
-	log.Info("  stima totale: %d token / context %d", check.Tokens, p.ContextWindow)
+	log.Info("  stima totale: %d token (densità reale char/3,2) / context %d", conservativePromptTokens(check.Tokens), p.ContextWindow)
 }
 
 func loadProfile(profiliDir, name string) (*profile.Profile, error) {
@@ -875,25 +1001,25 @@ func loadKB(kbDir string, files []string) ([]string, error) {
 	return out, nil
 }
 
-// drainStream consuma il canale di StreamEvent del provider mostrando progress
-// all'utente (FR-8 + UX-Sprint1).
+// drainStreamWithBody consuma il canale di StreamEvent del provider mostrando
+// progress all'utente (FR-8) e scrivendo raw i token chunks su bodyWriter (FR-35
+// body streaming live: TTY = io.MultiWriter(stderr, logFile), non-TTY = logFile).
 //   - Ticker 10s: mentre non arriva il primo token, stampa "ancora in attesa..."
-//     così l'utente sa che il warmup del modello (qwen3.6 36B può impiegare 1-2 min
-//     al primo caricamento in RAM) è in corso e non è un freeze.
+//     così l'utente sa che il warmup del modello è in corso e non è un freeze.
 //   - Ticker 500ms (TTY only): aggiorna in-place "> X token, Ys elapsed (Z tok/s)".
 //   - Ticker 30s (non-TTY only): stampa una linea di stato periodica.
-//   - Al primo token: stampa il TTFT (time-to-first-token) e segna l'inizio della generazione.
+//   - Al primo token: stampa il TTFT (time-to-first-token) e segna l'inizio generazione.
 //   - A fine stream: log.StreamEnd con statistica finale.
-func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, string, error) {
-	return drainStreamWithBody(ch, log, io.Discard, false)
-}
-
-// drainStreamWithBody è la variant di drainStream che riceve anche un
-// bodyWriter dove scrivere raw i token chunks (FR-35 body streaming live).
-// In TTY: bodyWriter = io.MultiWriter(stderr, logFile). Non-TTY: logFile only.
-// quiet=true sopprime il warning "stream error" (il chiamante gestisce l'errore,
-// es. l'overflow atteso durante la calibrazione del budget).
-func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter io.Writer, quiet bool) (string, string, error) {
+//
+// idleTimeout > 0: se NESSUN evento (token o reasoning) arriva entro quel lasso,
+// lo stream è in stallo → ritorna errStreamIdle (il chiamante cancella il context
+// e ritenta). idleTimeout <= 0 lo disabilita. quiet=true sopprime il warning
+// "stream error" (il chiamante gestisce l'errore, es. overflow di calibrazione).
+//
+// reasoningWriter riceve SOLO i delta di reasoning_content (puliti, senza le righe
+// di log): serve a salvare il "pensiero" del modello in un file affiancato — a
+// volte il deliverable resta incastrato lì con content=0 (caso A/142750).
+func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter, reasoningWriter io.Writer, quiet bool, idleTimeout time.Duration) (string, string, error) {
 	var b strings.Builder
 	// Default "interrotto": diventa "completato" solo se riceviamo esplicitamente done:true (EC-8).
 	stato := "interrotto"
@@ -927,6 +1053,29 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 	nonTTYTicker := time.NewTicker(30 * time.Second)
 	defer nonTTYTicker.Stop()
 
+	// Idle-timeout anti-hang: scatta se non arriva alcun evento entro idleTimeout.
+	// Resettato a ogni evento ricevuto (un modello che ragiona emette reasoning di
+	// continuo e non lo fa scattare; uno stallato sì). Canale nil = disabilitato.
+	var idleC <-chan time.Time
+	var idleTimer *time.Timer
+	if idleTimeout > 0 {
+		idleTimer = time.NewTimer(idleTimeout)
+		defer idleTimer.Stop()
+		idleC = idleTimer.C
+	}
+	resetIdle := func() {
+		if idleTimer == nil {
+			return
+		}
+		if !idleTimer.Stop() {
+			select {
+			case <-idleTimer.C:
+			default:
+			}
+		}
+		idleTimer.Reset(idleTimeout)
+	}
+
 	for {
 		select {
 		case <-waitTicker.C:
@@ -950,12 +1099,20 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 				log.Info("streaming in corso: %d token, %s elapsed (%.1f tok/s)",
 					tokenCount, elapsed.Round(time.Second), rate)
 			}
+		case <-idleC:
+			// Nessun evento entro idleTimeout: stream in stallo. Logghiamo (è una
+			// causa azionabile, non silenziosa) e ritorniamo errStreamIdle; il
+			// chiamante cancella il context (chiude la connessione) e ritenta.
+			log.Warn("nessun dato dal modello da %s: stream considerato in stallo, interrompo (verrà ritentato).", idleTimeout)
+			log.StreamEnd(tokenCount, time.Since(started))
+			return b.String(), stato, errStreamIdle
 		case ev, ok := <-ch:
 			if !ok {
 				log.StreamEnd(tokenCount, time.Since(started))
 				finalize()
 				return b.String(), stato, nil
 			}
+			resetIdle() // un evento è arrivato: lo stream è vivo, riarma l'idle-timeout
 			if ev.Err != nil {
 				log.StreamEnd(tokenCount, time.Since(started))
 				if !quiet {
@@ -971,8 +1128,10 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 				}
 				reasoningChars += len(ev.Reasoning)
 				// Mostrato (TTY) + loggato (.log) via bodyWriter; NON va in `b`,
-				// così il .md resta la risposta pulita. Niente del modello si butta.
+				// così il .md resta la risposta pulita. Niente del modello si butta:
+				// il reasoning "pulito" va anche su reasoningWriter (file affiancato).
 				_, _ = bodyWriter.Write([]byte(ev.Reasoning))
+				_, _ = reasoningWriter.Write([]byte(ev.Reasoning))
 			}
 			if ev.FinishReason != "" {
 				finishReason = ev.FinishReason

@@ -44,6 +44,22 @@ type Usage struct {
 	TotalTokens      int
 }
 
+// emit invia ev sul canale rispettando la cancellazione di ctx. Se il
+// consumatore ha smesso di leggere (ctx cancellato dal runner, es. idle-timeout
+// su uno stream in stallo), ritorna false: la goroutine produttrice termina e i
+// suoi defer chiudono body+canale, invece di restare bloccata per sempre su
+// `ch <-` (leak goroutine + connessione HTTP mai chiusa). Senza questa
+// ctx-awareness la cancellazione del runner non potrebbe sbloccare un send in
+// attesa. Usata da tutti i consumer di stream (eurouter, ollama).
+func emit(ctx context.Context, ch chan<- StreamEvent, ev StreamEvent) bool {
+	select {
+	case ch <- ev:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
 // LLMProvider è l'interface unica di chiamata.
 type LLMProvider interface {
 	Stream(ctx context.Context, system string, user string, opts Options) (<-chan StreamEvent, error)

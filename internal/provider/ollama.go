@@ -97,7 +97,7 @@ func (p *OllamaProvider) Stream(ctx context.Context, system, user string, opts O
 		return nil, err
 	}
 	ch := make(chan StreamEvent, 32)
-	go consumeOllamaStream(resp.Body, ch)
+	go consumeOllamaStream(ctx, resp.Body, ch)
 	return ch, nil
 }
 
@@ -176,7 +176,10 @@ func buildOllamaOptions(opts Options) map[string]interface{} {
 // chunk finale `done: true`, emettiamo `Done: true, NoDoneMarker: true` per
 // informare il caller che l'output è verosimilmente completo ma manca il
 // marker formale (capita con alcuni modelli reasoning su Ollama).
-func consumeOllamaStream(body interface{ Read(p []byte) (n int, err error); Close() error }, ch chan<- StreamEvent) {
+func consumeOllamaStream(ctx context.Context, body interface {
+	Read(p []byte) (n int, err error)
+	Close() error
+}, ch chan<- StreamEvent) {
 	defer close(ch)
 	defer body.Close()
 	scanner := bufio.NewScanner(body)
@@ -191,18 +194,20 @@ func consumeOllamaStream(body interface{ Read(p []byte) (n int, err error); Clos
 		if err := json.Unmarshal([]byte(line), &c); err != nil {
 			bad++
 			if bad >= maxConsecutiveBadChunks {
-				ch <- StreamEvent{Err: fmt.Errorf("ollama: streaming Ollama corrotto (%d chunk malformati consecutivi)", bad)}
+				emit(ctx, ch, StreamEvent{Err: fmt.Errorf("ollama: streaming Ollama corrotto (%d chunk malformati consecutivi)", bad)})
 				return
 			}
 			continue
 		}
 		bad = 0
 		if c.Message.Content != "" {
-			ch <- StreamEvent{Token: c.Message.Content}
+			if !emit(ctx, ch, StreamEvent{Token: c.Message.Content}) {
+				return
+			}
 		}
 		if c.Done {
 			// Caso normale: il server ha emesso done:true. NoDoneMarker resta false.
-			ch <- StreamEvent{Done: true}
+			emit(ctx, ch, StreamEvent{Done: true})
 			return
 		}
 	}
@@ -213,12 +218,12 @@ func consumeOllamaStream(body interface{ Read(p []byte) (n int, err error); Clos
 	//   3) altri errori scanner: errore vero (es. token buffer overflow).
 	scanErr := scanner.Err()
 	if scanErr != nil && !errorsIsUnexpectedEOF(scanErr) {
-		ch <- StreamEvent{Err: fmt.Errorf("ollama: scanner: %w", scanErr)}
+		emit(ctx, ch, StreamEvent{Err: fmt.Errorf("ollama: scanner: %w", scanErr)})
 		return
 	}
 	// EOF clean o unexpected EOF post-content: trattiamo come completato
 	// con NoDoneMarker=true, il caller (drainStream) loggerà un warning.
-	ch <- StreamEvent{Done: true, NoDoneMarker: true}
+	emit(ctx, ch, StreamEvent{Done: true, NoDoneMarker: true})
 }
 
 func errorsIsUnexpectedEOF(err error) bool {

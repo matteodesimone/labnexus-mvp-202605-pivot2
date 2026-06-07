@@ -83,7 +83,7 @@ func (p *EurouterProvider) Stream(ctx context.Context, system, user string, opts
 		return nil, err
 	}
 	ch := make(chan StreamEvent, 32)
-	go consumeEurouterStream(resp.Body, resp.Header, ch)
+	go consumeEurouterStream(ctx, resp.Body, resp.Header, ch)
 	return ch, nil
 }
 
@@ -163,7 +163,7 @@ func (p *EurouterProvider) httpClientOrDefault() *http.Client {
 // consumeEurouterStream legge SSE OpenAI-compatible (data: {...}, terminatore [DONE]).
 // header sono gli header della risposta: su uno stream vuoto contengono spesso la
 // prova del motivo (rate-limit, request-id per il supporto, content-type/length).
-func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- StreamEvent) {
+func consumeEurouterStream(ctx context.Context, body io.ReadCloser, header http.Header, ch chan<- StreamEvent) {
 	defer close(ch)
 	defer body.Close()
 	scanner := bufio.NewScanner(body)
@@ -184,7 +184,7 @@ func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- Str
 		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 		if payload == "[DONE]" {
 			sawDone = true
-			ch <- StreamEvent{Done: true}
+			emit(ctx, ch, StreamEvent{Done: true})
 			return
 		}
 		var c sseChunk
@@ -201,23 +201,31 @@ func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- Str
 		// inviano `data: {"error":{...}}` (es. context length, upstream, rate-limit).
 		// Va fatto EMERGERE: senza, il chunk veniva deserializzato vuoto e scartato.
 		if len(c.Error) > 0 && string(c.Error) != "null" {
-			ch <- StreamEvent{Err: fmt.Errorf("eurouter: errore dal provider (evento SSE su HTTP 200): %s", strings.TrimSpace(string(c.Error)))}
+			emit(ctx, ch, StreamEvent{Err: fmt.Errorf("eurouter: errore dal provider (evento SSE su HTTP 200): %s", strings.TrimSpace(string(c.Error)))})
 			return
 		}
 		for _, choice := range c.Choices {
 			// Reasoning (modelli "thinking" come kimi): delta.reasoning_content
 			// o delta.reasoning. Emesso separato dal contenuto — diagnostico.
 			if r := choice.Delta.ReasoningContent; r != "" {
-				ch <- StreamEvent{Reasoning: r}
+				if !emit(ctx, ch, StreamEvent{Reasoning: r}) {
+					return
+				}
 			} else if r := choice.Delta.Reasoning; r != "" {
-				ch <- StreamEvent{Reasoning: r}
+				if !emit(ctx, ch, StreamEvent{Reasoning: r}) {
+					return
+				}
 			}
 			if choice.Delta.Content != "" {
 				contentSeen = true
-				ch <- StreamEvent{Token: choice.Delta.Content}
+				if !emit(ctx, ch, StreamEvent{Token: choice.Delta.Content}) {
+					return
+				}
 			}
 			if choice.FinishReason != nil && *choice.FinishReason != "" {
-				ch <- StreamEvent{FinishReason: *choice.FinishReason}
+				if !emit(ctx, ch, StreamEvent{FinishReason: *choice.FinishReason}) {
+					return
+				}
 			}
 		}
 		// Chunk finale con usage (stream_options.include_usage): token reali.
@@ -230,11 +238,13 @@ func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- Str
 			if u.CompletionTokensDetails != nil {
 				ev.Usage.ReasoningTokens = u.CompletionTokensDetails.ReasoningTokens
 			}
-			ch <- ev
+			if !emit(ctx, ch, ev) {
+				return
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		ch <- StreamEvent{Err: fmt.Errorf("eurouter: scanner: %w", err)}
+		emit(ctx, ch, StreamEvent{Err: fmt.Errorf("eurouter: scanner: %w", err)})
 		return
 	}
 	if sawDone {
@@ -243,7 +253,7 @@ func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- Str
 	// Niente [DONE].
 	if contentSeen {
 		// EOF dopo contenuto: output verosimilmente completo, server senza [DONE].
-		ch <- StreamEvent{Done: true, NoDoneMarker: true}
+		emit(ctx, ch, StreamEvent{Done: true, NoDoneMarker: true})
 		return
 	}
 	// Zero contenuto: il provider non ha streammato nulla. Facciamo EMERGERE TUTTO
@@ -261,9 +271,9 @@ func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- Str
 		diag = append(diag, "header risposta: "+hs)
 	}
 	if len(diag) > 0 {
-		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token dal provider (HTTP 200 senza contenuto) — %s", strings.Join(diag, " | "))}
+		emit(ctx, ch, StreamEvent{Err: fmt.Errorf("eurouter: nessun token dal provider (HTTP 200 senza contenuto) — %s", strings.Join(diag, " | "))})
 	} else {
-		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token e nessun [DONE] — stream vuoto (body 0 byte, nessun header diagnostico): connessione chiusa dal gateway o capacità upstream esaurita")}
+		emit(ctx, ch, StreamEvent{Err: fmt.Errorf("eurouter: nessun token e nessun [DONE] — stream vuoto (body 0 byte, nessun header diagnostico): connessione chiusa dal gateway o capacità upstream esaurita")})
 	}
 }
 

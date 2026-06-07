@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -23,7 +24,7 @@ func TestConsumeEurouterStream_ReasoningAndFinishReason(t *testing.T) {
 	}, "\n")
 
 	ch := make(chan StreamEvent, 32)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
+	consumeEurouterStream(context.Background(), io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 
 	var reasoning, content, finish string
 	var done bool
@@ -63,7 +64,7 @@ func TestConsumeEurouterStream_EmptyContentAllReasoning(t *testing.T) {
 	}, "\n")
 
 	ch := make(chan StreamEvent, 32)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
+	consumeEurouterStream(context.Background(), io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 
 	var reasoning, content, finish string
 	for ev := range ch {
@@ -86,7 +87,7 @@ func TestConsumeEurouterStream_EmptyContentAllReasoning(t *testing.T) {
 func TestConsumeEurouterStream_SurfacesNonSSEError(t *testing.T) {
 	body := `{"error":{"message":"insufficient credits","type":"billing"}}`
 	ch := make(chan StreamEvent, 8)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(body)), http.Header{}, ch)
+	consumeEurouterStream(context.Background(), io.NopCloser(strings.NewReader(body)), http.Header{}, ch)
 	var gotErr error
 	for ev := range ch {
 		if ev.Err != nil {
@@ -112,7 +113,7 @@ func TestEurouter_UsageRequestedAndParsed(t *testing.T) {
 		"",
 	}, "\n")
 	ch := make(chan StreamEvent, 16)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
+	consumeEurouterStream(context.Background(), io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 	var u *Usage
 	for ev := range ch {
 		if ev.Usage != nil {
@@ -138,7 +139,7 @@ func TestConsumeEurouterStream_SurfacesSSEFramedError(t *testing.T) {
 		"",
 	}, "\n")
 	ch := make(chan StreamEvent, 8)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
+	consumeEurouterStream(context.Background(), io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 	var gotErr error
 	var content string
 	for ev := range ch {
@@ -163,7 +164,7 @@ func TestConsumeEurouterStream_EmptyBodySurfacesHeaders(t *testing.T) {
 	h.Set("X-Request-Id", "req_abc123")
 	h.Set("Retry-After", "30")
 	ch := make(chan StreamEvent, 8)
-	consumeEurouterStream(io.NopCloser(strings.NewReader("")), h, ch)
+	consumeEurouterStream(context.Background(), io.NopCloser(strings.NewReader("")), h, ch)
 	var gotErr error
 	for ev := range ch {
 		if ev.Err != nil {

@@ -21,7 +21,7 @@ func TestDrainStream_ReasoningLoggedNotInOutput(t *testing.T) {
 	close(ch)
 
 	var shown bytes.Buffer
-	body, stato, err := drainStreamWithBody(ch, runlog.New(io.Discard), &shown)
+	body, stato, err := drainStreamWithBody(ch, runlog.New(io.Discard), &shown, false)
 	if err != nil {
 		t.Fatalf("err: %v", err)
 	}

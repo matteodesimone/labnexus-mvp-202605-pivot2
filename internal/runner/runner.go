@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -398,7 +399,37 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	multiLog.BeginStep("chiamata provider " + prov.Name())
 	// Sprint 1.5.C verbose: stampa URL endpoint + modello + parametri per debug.
 	logProviderRequest(multiLog, prov, p, effMaxTokens, check.Tokens)
-	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, multiLog, bodyWriter)
+	body, stato, err := callProviderWithStreaming(prov, composed, p, effMaxTokens, multiLog, bodyWriter, true)
+	// Backstop di calibrazione provider-authoritative (LOOP). La prima chiamata usa
+	// la stima accurata (char/3,2) e di norma ENTRA. Se un contenuto è più denso e
+	// sfora, il provider ci dice quanti input token conta e impostiamo max_tokens =
+	// conteggio_reale + buffer (NESSUNA nostra stima determina il risultato). È un
+	// loop perché al primo errore il conteggio può essere PER DIFETTO ("at least N");
+	// l'esatto arriva dopo. Le chiamate sono "quiet": l'overflow di calibrazione NON
+	// è loggato come errore (lo gestiamo qui come passo calmo), così l'audit ISO resta
+	// pulito. Stop quando entra, o il reale non lascia il minimo (errore chiaro), o
+	// non c'è progresso, o si esauriscono i giri.
+	lastRequested := effMaxTokens
+	for attempt := 1; err != nil && attempt <= maxProviderRetries; attempt++ {
+		realInput, ok := parseContextOverflow(err, lastRequested)
+		if !ok {
+			multiLog.Warn("errore dal provider (non di context length): %v", err)
+			break
+		}
+		retryMax, fits := retryOutputBudget(realInput, p.ContextWindow)
+		if !fits {
+			err = fmt.Errorf("runner: input troppo grande — il provider conta %d token di prompt; oltre il limite del modello (%d) non restano i %d token minimi di output. Riduci i file di input", realInput, p.ContextWindow, minOutputBudget)
+			break
+		}
+		if retryMax >= lastRequested {
+			multiLog.Warn("calibrazione budget non converge (il provider riporta %d token di input senza progresso): mi fermo.", realInput)
+			break
+		}
+		multiLog.Info("calibrazione budget output (giro %d/%d): il provider conta %d token di prompt → max_tokens=%d (buffer %d), procedo.",
+			attempt, maxProviderRetries, realInput, retryMax, outputBuffer)
+		lastRequested = retryMax
+		body, stato, err = callProviderWithStreaming(prov, composed, p, retryMax, multiLog, bodyWriter, true)
+	}
 	duration := time.Since(started)
 	multiLog.EndStep()
 	if err != nil {
@@ -453,54 +484,165 @@ func streamAndWriteOutput(cfg Config, master *config.Master, p *profile.Profile,
 	}, nil
 }
 
+// outputBuffer è il piccolo cuscino (token) lasciato sopra il prompt: il budget di
+// output è context − prompt − outputBuffer. Tenerlo piccolo massimizza l'output.
+const outputBuffer = 500
+
+// conservativePromptTokens converte la stima FR-6 char/4 (che SOTTOSTIMA del ~25%)
+// nella densità REALE verificata di kimi (~3,2 char/token: 733445 char = 229169
+// token su CAPABILITY A, 2026-06-06). Fattore 4/3,2 = ×5/4. Usata SOLO per il budget
+// di output; la stima FR-6 char/4 resta per il warning a 70/100%.
+func conservativePromptTokens(charDiv4 int) int {
+	return charDiv4 * 5 / 4
+}
+
+// defaultOutputBudget è il fallback usato SOLO quando il context_window non è noto
+// (raro: il config lo definisce sempre). 32768 = esempio Moonshot per kimi thinking.
+const defaultOutputBudget = 32768
+
+// minOutputBudget è il budget di output minimo sensato su un modello "thinking":
+// sotto i 16000 token (raccomandazione Moonshot per kimi) il reasoning_content può
+// consumare tutto il budget lasciando content vuoto.
+const minOutputBudget = 16000
+
+// maxProviderRetries limita le iterazioni di calibrazione (backstop) su context
+// overflow. Loop perché al primo errore il provider può riportare un conteggio "at
+// least N" PER DIFETTO; l'esatto arriva dopo — si itera finché la richiesta entra.
+const maxProviderRetries = 4
+
+// resolveOutputBudget decide il max_tokens INIZIALE da inviare.
+//
+// configMax <= 0 (default: max_tokens=0) → budget = context − stima_reale(char/3,2)
+// − buffer, con floor a minOutputBudget. Usa la densità VERIFICATA di kimi (≈3,2
+// char/tok), così la prima chiamata ENTRA al primo colpo (audit pulito, output
+// quasi-massimo) sia nel gateway eurouter (≈256000, che pre-stima ~char/4) sia nel
+// modello vLLM (262144, conteggio reale). NON omesso (default provider ~1024 →
+// vuoto su thinking). Se un contenuto è più denso di 3,2 e sfora, il backstop in
+// streamAndWriteOutput calibra sul conteggio REALE restituito dal provider.
+//
+// configMax > 0 → tetto esplicito.
+//
+// Guardia pre-volo LENIENTE: usa la stima ottimistica (char/4) per NON rifiutare
+// input che in realtà entrano; il rifiuto "vero" lo dà il provider nel backstop.
+func resolveOutputBudget(configMax, promptTokens, contextWindow int) (int, error) {
+	if contextWindow > 0 && promptTokens+minOutputBudget > contextWindow {
+		return 0, fmt.Errorf("runner: input troppo grande — anche la stima ottimistica è ~%d token di prompt; il modello (context %d) non lascia i %d token minimi per l'output. Riduci i file di input",
+			promptTokens, contextWindow, minOutputBudget)
+	}
+	if configMax > 0 {
+		return configMax, nil
+	}
+	if contextWindow <= 0 {
+		return defaultOutputBudget, nil // context ignoto: fallback fisso sano
+	}
+	budget := contextWindow - conservativePromptTokens(promptTokens) - outputBuffer
+	if budget < minOutputBudget {
+		budget = minOutputBudget
+	}
+	return budget, nil
+}
+
+// parseContextOverflow riconosce un errore di context overflow del provider in
+// QUALSIASI dei 3 formati osservati ed estrae il conteggio di input token del
+// prompt, per il backstop di calibrazione. lastRequested = max_tokens appena
+// inviato: serve a derivare il prompt dal "total" stimato dal gateway.
+//
+// Formati (2026-06-06):
+//   - vLLM esatto: "...229169 tokens from the input messages..."        → reale (preferito)
+//   - gateway 400: "Estimated total tokens (T) exceeds model context window (256000)" → prompt = T − lastRequested
+//   - vLLM stima:  "...at least N input tokens... (parameter=input_tokens, value=N)"  → lower bound
+func parseContextOverflow(err error, lastRequested int) (int, bool) {
+	if err == nil {
+		return 0, false
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "maximum context length") && !strings.Contains(msg, "exceeds model context window") {
+		return 0, false
+	}
+	// Formato ESATTO (preferito): "...229169 tokens from the input messages...".
+	if n, ok := intBefore(msg, "tokens from the input"); ok {
+		return n, true
+	}
+	// Gateway: "Estimated total tokens (T)" → prompt = T − max_tokens inviato.
+	if t, ok := intAfter(msg, "Estimated total tokens ("); ok && t > lastRequested {
+		return t - lastRequested, true
+	}
+	// Formato STIMA ("at least N" / value=N): lower bound; il loop converge poi
+	// sul conteggio esatto.
+	if n, ok := intAfter(msg, "value="); ok {
+		return n, true
+	}
+	if n, ok := intAfter(msg, "at least "); ok {
+		return n, true
+	}
+	return 0, false
+}
+
+// intBefore ritorna l'intero che precede marker in s (saltando spazi). (0,false)
+// se marker assente o non preceduto da cifre.
+func intBefore(s, marker string) (int, bool) {
+	i := strings.Index(s, marker)
+	if i <= 0 {
+		return 0, false
+	}
+	end := i
+	for end > 0 && s[end-1] == ' ' {
+		end--
+	}
+	start := end
+	for start > 0 && s[start-1] >= '0' && s[start-1] <= '9' {
+		start--
+	}
+	if start == end {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s[start:end])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// intAfter ritorna l'intero che segue marker in s (saltando spazi). (0,false) se
+// marker assente o non seguito da cifre.
+func intAfter(s, marker string) (int, bool) {
+	i := strings.Index(s, marker)
+	if i < 0 {
+		return 0, false
+	}
+	j := i + len(marker)
+	for j < len(s) && s[j] == ' ' {
+		j++
+	}
+	start := j
+	for j < len(s) && s[j] >= '0' && s[j] <= '9' {
+		j++
+	}
+	if j == start {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s[start:j])
+	if err != nil {
+		return 0, false
+	}
+	return n, true
+}
+
+// retryOutputBudget calcola il max_tokens dal conteggio di input token che il
+// provider ha restituito, col buffer minimo (output massimo). Ritorna (budget,true)
+// se resta spazio per l'output minimo; (0,false) se l'input è genuinamente troppo
+// grande (→ il caller blocca con messaggio chiaro e azionabile).
+func retryOutputBudget(realInput, contextWindow int) (int, bool) {
+	avail := contextWindow - realInput - outputBuffer
+	if avail < minOutputBudget {
+		return 0, false
+	}
+	return avail, true
+}
+
 // logProviderRequest stampa info diagnostiche prima della chiamata al provider
 // (Sprint 1.5.C verbose). Endpoint risolto via env override o default. Visibile
 // anche nel .log accoppiato (audit trail NFR-11).
-// effectiveMaxTokens calcola il budget di output da chiedere al modello. Per i
-// modelli "thinking" (es. kimi-k2.6) reasoning_content e content CONDIVIDONO
-// max_tokens, quindi vogliamo il massimo possibile senza sforare il context:
-//
-//	max_tokens = context_window - prompt_token - margine
-//
-//   - configMax <= 0  → "auto": usa tutto il budget disponibile.
-//   - configMax > 0   → tetto, ma viene ristretto se il prompt non lascia spazio
-//     (evita prompt+output > context, che alcuni provider rifiutano).
-//
-// Margine ~5% del context per assorbire l'imprecisione della stima token.
-func effectiveMaxTokens(configMax, promptTokens, contextWindow int) int {
-	if contextWindow <= 0 {
-		return configMax
-	}
-	margin := contextWindow / 20
-	if margin < 4096 {
-		margin = 4096
-	}
-	available := contextWindow - promptTokens - margin
-	// Nessun floor: available può essere piccolo/negativo se il prompt riempie il
-	// context. Il caller (resolveOutputBudget) blocca se è sotto il minimo utile,
-	// così non si invia mai un max_tokens che sfora il context.
-	if configMax > 0 && configMax < available {
-		return configMax
-	}
-	return available
-}
-
-// minOutputBudget è il budget di output minimo per considerare un run sensato.
-// Sotto questa soglia il prompt occupa quasi tutto il context e l'output sarebbe
-// troncato/vuoto (peggio: un floor potrebbe sforare il context).
-const minOutputBudget = 4096
-
-// resolveOutputBudget calcola il budget di output effettivo e blocca il run con
-// un errore chiaro se il prompt non lascia abbastanza spazio per un output utile.
-func resolveOutputBudget(configMax, promptTokens, contextWindow int) (int, error) {
-	effMax := effectiveMaxTokens(configMax, promptTokens, contextWindow)
-	if contextWindow > 0 && effMax < minOutputBudget {
-		return 0, fmt.Errorf("runner: input troppo grande — restano solo %d token per l'output (context %d, prompt ~%d; riserva minima %d). Riduci i file di input o aumenta context_window",
-			effMax, contextWindow, promptTokens, minOutputBudget)
-	}
-	return effMax, nil
-}
-
 func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profile.Profile, effMaxTokens, promptTokens int) {
 	var endpoint string
 	switch prov.Name() {
@@ -517,12 +659,10 @@ func logProviderRequest(log *runlog.Logger, prov provider.LLMProvider, p *profil
 	}
 	maxTokensNote := fmt.Sprintf("%d", effMaxTokens)
 	if p.MaxTokens <= 0 {
-		maxTokensNote += " (auto)"
-	} else if effMaxTokens < p.MaxTokens {
-		maxTokensNote += fmt.Sprintf(" (ristretto dal context; config %d)", p.MaxTokens)
+		maxTokensNote += " (auto: context − stima_reale − buffer)"
 	}
-	log.Info("provider: %s | endpoint: %s | modello: %s | temperature: %.2f | max_tokens: %s | prompt ~%d token",
-		prov.Name(), endpoint, p.Modello, p.Temperature, maxTokensNote, promptTokens)
+	log.Info("provider: %s | endpoint: %s | modello: %s | temperature: %.2f | max_tokens: %s | prompt ~%d token (stima reale char/3,2; char/4=%d)",
+		prov.Name(), endpoint, p.Modello, p.Temperature, maxTokensNote, conservativePromptTokens(promptTokens), promptTokens)
 }
 
 // outputBaseName ritorna il base name del file output (senza estensione).
@@ -576,7 +716,9 @@ func isStderrTTY() bool {
 	return term.IsTerminal(int(os.Stderr.Fd()))
 }
 
-func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, maxTokens int, log *runlog.Logger, bodyWriter io.Writer) (string, string, error) {
+// quiet=true: l'eventuale errore di stream NON viene loggato come warning (il
+// chiamante lo gestisce — es. l'overflow di calibrazione, che è un passo atteso).
+func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Composed, p *profile.Profile, maxTokens int, log *runlog.Logger, bodyWriter io.Writer, quiet bool) (string, string, error) {
 	ch, err := prov.Stream(context.Background(), composed.System, composed.User, provider.Options{
 		Modello:       p.Modello,
 		Temperature:   p.Temperature,
@@ -586,7 +728,7 @@ func callProviderWithStreaming(prov provider.LLMProvider, composed *prompt.Compo
 	if err != nil {
 		return "", "", err
 	}
-	body, stato, derr := drainStreamWithBody(ch, log, bodyWriter)
+	body, stato, derr := drainStreamWithBody(ch, log, bodyWriter, quiet)
 	return body, stato, derr
 }
 
@@ -711,13 +853,15 @@ func loadKB(kbDir string, files []string) ([]string, error) {
 //   - Al primo token: stampa il TTFT (time-to-first-token) e segna l'inizio della generazione.
 //   - A fine stream: log.StreamEnd con statistica finale.
 func drainStream(ch <-chan provider.StreamEvent, log *runlog.Logger) (string, string, error) {
-	return drainStreamWithBody(ch, log, io.Discard)
+	return drainStreamWithBody(ch, log, io.Discard, false)
 }
 
 // drainStreamWithBody è la variant di drainStream che riceve anche un
 // bodyWriter dove scrivere raw i token chunks (FR-35 body streaming live).
 // In TTY: bodyWriter = io.MultiWriter(stderr, logFile). Non-TTY: logFile only.
-func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter io.Writer) (string, string, error) {
+// quiet=true sopprime il warning "stream error" (il chiamante gestisce l'errore,
+// es. l'overflow atteso durante la calibrazione del budget).
+func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bodyWriter io.Writer, quiet bool) (string, string, error) {
 	var b strings.Builder
 	// Default "interrotto": diventa "completato" solo se riceviamo esplicitamente done:true (EC-8).
 	stato := "interrotto"
@@ -783,7 +927,9 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 			}
 			if ev.Err != nil {
 				log.StreamEnd(tokenCount, time.Since(started))
-				log.Warn("stream error: %v", ev.Err)
+				if !quiet {
+					log.Warn("stream error: %v", ev.Err)
+				}
 				finalize()
 				return b.String(), stato, ev.Err
 			}

@@ -65,6 +65,11 @@ type sseChunk struct {
 		FinishReason *string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage *sseUsage `json:"usage"`
+	// Errore "SSE-framed": alcuni gateway OpenAI-compatible (incl. eurouter)
+	// rispondono 200, aprono lo stream e poi notificano un errore UPSTREAM come
+	// evento `data: {"error":{...}}`. Senza questo campo il chunk veniva
+	// deserializzato vuoto e l'errore SCARTATO, lasciando solo "stream vuoto".
+	Error json.RawMessage `json:"error"`
 }
 
 // Stream invia la richiesta SSE e ritorna un canale di StreamEvent.
@@ -78,7 +83,7 @@ func (p *EurouterProvider) Stream(ctx context.Context, system, user string, opts
 		return nil, err
 	}
 	ch := make(chan StreamEvent, 32)
-	go consumeEurouterStream(resp.Body, ch)
+	go consumeEurouterStream(resp.Body, resp.Header, ch)
 	return ch, nil
 }
 
@@ -156,14 +161,17 @@ func (p *EurouterProvider) httpClientOrDefault() *http.Client {
 }
 
 // consumeEurouterStream legge SSE OpenAI-compatible (data: {...}, terminatore [DONE]).
-func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Close() error }, ch chan<- StreamEvent) {
+// header sono gli header della risposta: su uno stream vuoto contengono spesso la
+// prova del motivo (rate-limit, request-id per il supporto, content-type/length).
+func consumeEurouterStream(body io.ReadCloser, header http.Header, ch chan<- StreamEvent) {
 	defer close(ch)
 	defer body.Close()
 	scanner := bufio.NewScanner(body)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	sawDone := false
 	contentSeen := false
-	var nonData strings.Builder // righe NON-SSE: spesso contengono l'errore vero del provider (es. {"error":...} su un 200)
+	var nonData strings.Builder   // righe NON-SSE: spesso contengono l'errore vero del provider (es. {"error":...} su un 200)
+	var unhandled strings.Builder // payload `data:` che non producono eventi: errori SSE-framed o chunk malformati
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data:") {
@@ -181,7 +189,20 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 		}
 		var c sseChunk
 		if err := json.Unmarshal([]byte(payload), &c); err != nil {
-			continue // tolerante: chunk malformato isolato
+			// NON scartare: un payload `data:` malformato può essere/contenere
+			// l'errore vero del gateway. Lo conserviamo per la diagnostica.
+			if unhandled.Len() < 4096 {
+				unhandled.WriteString(payload)
+				unhandled.WriteByte('\n')
+			}
+			continue
+		}
+		// Errore SSE-framed: alcuni gateway rispondono 200, aprono lo stream e poi
+		// inviano `data: {"error":{...}}` (es. context length, upstream, rate-limit).
+		// Va fatto EMERGERE: senza, il chunk veniva deserializzato vuoto e scartato.
+		if len(c.Error) > 0 && string(c.Error) != "null" {
+			ch <- StreamEvent{Err: fmt.Errorf("eurouter: errore dal provider (evento SSE su HTTP 200): %s", strings.TrimSpace(string(c.Error)))}
+			return
 		}
 		for _, choice := range c.Choices {
 			// Reasoning (modelli "thinking" come kimi): delta.reasoning_content
@@ -225,12 +246,50 @@ func consumeEurouterStream(body interface{ Read(p []byte) (n int, err error); Cl
 		ch <- StreamEvent{Done: true, NoDoneMarker: true}
 		return
 	}
-	// Zero contenuto: il provider non ha streammato nulla. Spesso il body è un
-	// errore JSON su HTTP 200 (credito esaurito, modello/parametro rifiutato,
-	// rate limit). Lo facciamo EMERGERE invece del generico "timeout".
-	if extra := strings.TrimSpace(nonData.String()); extra != "" {
-		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token — risposta del provider (HTTP 200 non-SSE): %s", extra)}
-	} else {
-		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token e nessun [DONE] (stream vuoto dal provider)")}
+	// Zero contenuto: il provider non ha streammato nulla. Facciamo EMERGERE TUTTO
+	// ciò che è arrivato — payload `data:` non gestiti, body non-SSE, e gli header
+	// (request-id, rate-limit, content-type/length) che spiegano un 200 vuoto —
+	// invece del generico "stream vuoto" che nascondeva la causa reale.
+	var diag []string
+	if s := strings.TrimSpace(unhandled.String()); s != "" {
+		diag = append(diag, "payload non gestito: "+s)
 	}
+	if s := strings.TrimSpace(nonData.String()); s != "" {
+		diag = append(diag, "body non-SSE: "+s)
+	}
+	if hs := headerSummary(header); hs != "" {
+		diag = append(diag, "header risposta: "+hs)
+	}
+	if len(diag) > 0 {
+		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token dal provider (HTTP 200 senza contenuto) — %s", strings.Join(diag, " | "))}
+	} else {
+		ch <- StreamEvent{Err: fmt.Errorf("eurouter: nessun token e nessun [DONE] — stream vuoto (body 0 byte, nessun header diagnostico): connessione chiusa dal gateway o capacità upstream esaurita")}
+	}
+}
+
+// headerSummary estrae dagli header della risposta i campi diagnostici utili a
+// spiegare un 200 senza contenuto: content-type/length (SSE vs JSON, body vuoto),
+// request-id (per i ticket al provider), retry-after e rate-limit (capacità).
+func headerSummary(h http.Header) string {
+	if h == nil {
+		return ""
+	}
+	var parts []string
+	add := func(label, val string) {
+		if v := strings.TrimSpace(val); v != "" {
+			parts = append(parts, label+"="+v)
+		}
+	}
+	add("content-type", h.Get("Content-Type"))
+	add("content-length", h.Get("Content-Length"))
+	add("retry-after", h.Get("Retry-After"))
+	for _, k := range []string{"X-Request-Id", "X-Request-ID", "Cf-Ray", "X-Amzn-Requestid"} {
+		add("request-id", h.Get(k))
+	}
+	for name, vals := range h {
+		if strings.Contains(strings.ToLower(name), "ratelimit") && len(vals) > 0 {
+			add(strings.ToLower(name), vals[0])
+		}
+	}
+	return strings.Join(parts, ", ")
 }

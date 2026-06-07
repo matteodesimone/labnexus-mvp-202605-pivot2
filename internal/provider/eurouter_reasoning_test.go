@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestConsumeEurouterStream_ReasoningAndFinishReason(t *testing.T) {
 	}, "\n")
 
 	ch := make(chan StreamEvent, 32)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), ch)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 
 	var reasoning, content, finish string
 	var done bool
@@ -62,7 +63,7 @@ func TestConsumeEurouterStream_EmptyContentAllReasoning(t *testing.T) {
 	}, "\n")
 
 	ch := make(chan StreamEvent, 32)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), ch)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 
 	var reasoning, content, finish string
 	for ev := range ch {
@@ -85,7 +86,7 @@ func TestConsumeEurouterStream_EmptyContentAllReasoning(t *testing.T) {
 func TestConsumeEurouterStream_SurfacesNonSSEError(t *testing.T) {
 	body := `{"error":{"message":"insufficient credits","type":"billing"}}`
 	ch := make(chan StreamEvent, 8)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(body)), ch)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(body)), http.Header{}, ch)
 	var gotErr error
 	for ev := range ch {
 		if ev.Err != nil {
@@ -111,7 +112,7 @@ func TestEurouter_UsageRequestedAndParsed(t *testing.T) {
 		"",
 	}, "\n")
 	ch := make(chan StreamEvent, 16)
-	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), ch)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
 	var u *Usage
 	for ev := range ch {
 		if ev.Usage != nil {
@@ -123,5 +124,56 @@ func TestEurouter_UsageRequestedAndParsed(t *testing.T) {
 	}
 	if u.PromptTokens != 1200 || u.CompletionTokens != 800 || u.ReasoningTokens != 500 || u.TotalTokens != 2000 {
 		t.Errorf("usage = %+v, want prompt=1200 completion=800 reasoning=500 total=2000", u)
+	}
+}
+
+// Errore "SSE-framed": il gateway risponde 200, apre lo stream e poi invia
+// data: {"error":{...}} (es. context length / upstream / rate-limit). Prima
+// veniva deserializzato vuoto e SCARTATO; ora deve emergere nell'errore, non
+// nel generico "stream vuoto".
+func TestConsumeEurouterStream_SurfacesSSEFramedError(t *testing.T) {
+	sse := strings.Join([]string{
+		`data: {"error":{"message":"the request exceeds the maximum context length","type":"invalid_request_error","code":"context_length_exceeded"}}`,
+		`data: [DONE]`,
+		"",
+	}, "\n")
+	ch := make(chan StreamEvent, 8)
+	consumeEurouterStream(io.NopCloser(strings.NewReader(sse)), http.Header{}, ch)
+	var gotErr error
+	var content string
+	for ev := range ch {
+		if ev.Err != nil {
+			gotErr = ev.Err
+		}
+		content += ev.Token
+	}
+	if content != "" {
+		t.Errorf("nessun contenuto atteso, got %q", content)
+	}
+	if gotErr == nil || !strings.Contains(gotErr.Error(), "context length") {
+		t.Errorf("l'errore SSE-framed del provider deve emergere, got %v", gotErr)
+	}
+}
+
+// 200 con body 0 byte: senza payload da mostrare, l'errore deve almeno riportare
+// gli header diagnostici (request-id, retry-after) — tutto ciò che il provider
+// manda, meta inclusa, va mostrato/loggato.
+func TestConsumeEurouterStream_EmptyBodySurfacesHeaders(t *testing.T) {
+	h := http.Header{}
+	h.Set("X-Request-Id", "req_abc123")
+	h.Set("Retry-After", "30")
+	ch := make(chan StreamEvent, 8)
+	consumeEurouterStream(io.NopCloser(strings.NewReader("")), h, ch)
+	var gotErr error
+	for ev := range ch {
+		if ev.Err != nil {
+			gotErr = ev.Err
+		}
+	}
+	if gotErr == nil {
+		t.Fatal("atteso un errore per stream vuoto")
+	}
+	if !strings.Contains(gotErr.Error(), "req_abc123") || !strings.Contains(gotErr.Error(), "30") {
+		t.Errorf("l'errore deve riportare gli header diagnostici (request-id, retry-after), got %v", gotErr)
 	}
 }

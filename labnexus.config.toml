@@ -20,20 +20,25 @@ provider = "eurouter"
 # modello = "qwen3.5-122b-a10b"
 modello = "kimi-k2.6"
 
-# Parametri LLM di default. context_window = 256K (= 262144), il context reale
-# di kimi-k2.6: serve SOLO alla stima locale "il prompt ci sta?", non viene
-# inviato al modello (non è un parametro OpenAI-compatible).
+# Parametri LLM di default. context_window = 256000: è il limite REALMENTE applicato
+# dal gateway eurouter (HTTP 400 "exceeds model context window (256000)"), più stretto
+# del 262144 del modello kimi dietro. Serve alla stima locale e al calcolo del budget
+# di output; non è un parametro OpenAI-compatible inviato al modello.
 #
 # temperature: kimi-k2.6 ha temperatura FISSA 1.0 (doc Moonshot) — usare 1.0.
 #
 # max_tokens: kimi-k2.6 è un modello "thinking" → reasoning_content e content
-# CONDIVIDONO max_tokens; Moonshot raccomanda >= 16000. 0 = AUTO: il motore
-# calcola a ogni run il massimo budget di output possibile (context - prompt -
-# margine), così non tronca mai per un valore fisso e si adatta alla dimensione
-# dell'input. Metti un numero per imporre un tetto (comunque ristretto al context).
+# CONDIVIDONO max_tokens; Moonshot raccomanda >= 16000 (esempio ufficiale: 32768).
+# 0 = AUTO: labnexus calcola context − stima_prompt − buffer usando la densità REALE
+# di kimi (~3,2 char/token, verificata), così la prima chiamata ENTRA al primo colpo
+# (output quasi-massimo, log pulito). NON omette max_tokens: senza, il default
+# documentato eurouter/Moonshot è ~1024 → un thinking lo esaurisce nel reasoning e
+# torna VUOTO. Se un contenuto è più denso del previsto e sfora, labnexus calibra sul
+# conteggio REALE del provider e riprova (loop, log pulito); se il reale non lascia i
+# 16000 minimi, errore chiaro a schermo+log. Metti un numero per un tetto fisso.
 temperature = 1.0
 max_tokens = 0
-context_window = 262000
+context_window = 256000
 
 # Chiave API per eurouter. Denis la riempie qui dopo lo zip extract.
 # In alternativa, può essere passata come env var EUROUTER_API_KEY (precedenza env > master).

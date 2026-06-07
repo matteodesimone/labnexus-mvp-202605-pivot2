@@ -5,6 +5,14 @@
 profilo = "revisione"
 descrizione = "Revisione documentale in seguito a cambio di norma di riferimento"
 
+# Override LOCALE di A (gli altri 6 profili NON definiscono max_tokens → ereditano il
+# default master 32768). Il prompt di questa capability è il più grande (~229k token
+# reali: KB + manuale + RT), quindi col 32768 resterebbe a soli ~200 token dal limite
+# del modello. Qui riserviamo più margine: 24576 di output lascia ~8k sotto il limite
+# (vs 207), restando abbondante per il report (output osservato ~15k). Se vedi
+# 'finish_reason: length' nel log, alza; se l'input cresce molto e sfora, abbassa.
+max_tokens = 24576
+
 # Sprint 1.5.E — rimappato sul KB-ispettore v2.1 (refactor flat → cartelle numerate).
 # Mappatura "ampio": core di sistema + § 6 e § 7 completi (ex monoliti sezione-6/7).
 kb_files = [

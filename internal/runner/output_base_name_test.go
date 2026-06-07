@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/labnexus/labnexus/internal/input"
+	"github.com/labnexus/labnexus/internal/output"
 	"github.com/labnexus/labnexus/internal/profile"
 )
 
@@ -51,5 +52,28 @@ func TestOutputBaseName_NoInputFilesReturnsTimestampAndProfile(t *testing.T) {
 	}
 	if !strings.Contains(got, "revisione") {
 		t.Errorf("outputBaseName dovrebbe contenere il profilo, got %q", got)
+	}
+}
+
+// Bug 2026-06-07: il basename del `.log` conteneva spazi/punti/accenti/virgole
+// (dal nome file di input) mentre .md/.pdf/.docx erano sanitizzati con output.Slug
+// → nomi base divergenti e .log fragile su kDrive/shell/URL. Ora outputBaseName usa
+// lo STESSO slug: i quattro file condividono il nome base.
+func TestOutputBaseName_SanitizesLikeOutputWrite(t *testing.T) {
+	p := &profile.Profile{Profilo: "review-pack"}
+	parsed := &input.ParsedResult{
+		Files: []input.ParsedFile{
+			{Name: "WP1/M113.02_Non Conformità, Azioni Correttive_2026.xlsx", Text: "x", Size: 1},
+		},
+	}
+	started := time.Date(2026, 6, 7, 11, 32, 1, 0, time.UTC)
+	got := outputBaseName(p, parsed, started)
+
+	if strings.ContainsAny(got, " ,") {
+		t.Errorf("il basename non deve contenere spazi/virgole: %q", got)
+	}
+	want := "2026-06-07T113201_" + output.Slug("review-pack") + "_" + output.Slug("M113.02_Non Conformità, Azioni Correttive_2026")
+	if got != want {
+		t.Errorf("basename = %q, want %q (stesso slug di output.Write)", got, want)
 	}
 }

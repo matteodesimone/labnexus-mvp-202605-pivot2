@@ -87,7 +87,7 @@ func Write(outputDir string, fm *Frontmatter, body string) (string, error) {
 	}
 	ts := timestampFromFrontmatter(fm)
 	descriptor := inputDescriptor(fm.FileInput)
-	base := fmt.Sprintf("%s_%s", ts, slug(fm.Profilo))
+	base := fmt.Sprintf("%s_%s", ts, Slug(fm.Profilo))
 	if descriptor != "" {
 		base += "_" + descriptor
 	}
@@ -178,7 +178,11 @@ func sortStringSlice(s []string) {
 
 var nonSlugRe = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
 
-func slug(s string) string {
+// Slug normalizza s in un componente di filename sicuro: ogni sequenza di
+// caratteri non [a-zA-Z0-9_-] diventa "-". Esportata perché usata sia qui (nomi
+// .md/.pdf/.docx) sia da runner.outputBaseName per il `.log` accoppiato, così i
+// quattro file condividono lo stesso nome base (no spazi/punti/accenti/virgole).
+func Slug(s string) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return "unknown"
@@ -205,7 +209,7 @@ func inputDescriptor(files []string) string {
 	if ext != "" {
 		first = strings.TrimSuffix(first, ext)
 	}
-	return slug(first)
+	return Slug(first)
 }
 
 // uniquePath ritorna il primo path libero: base.ext, base_2.ext, base_3.ext, ...

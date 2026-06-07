@@ -640,6 +640,22 @@ func retryOutputBudget(realInput, contextWindow int) (int, bool) {
 	return avail, true
 }
 
+// formatUsage formatta la riga "usage" gestendo la peculiarità dei modelli
+// "thinking" su eurouter: a volte reasoning_tokens NON è un sottoinsieme di
+// completion_tokens (kimi su eurouter, 2026-06-07: reasoning 14335 > completion
+// 6341). In quel caso il content è completion e il reasoning è SEPARATO, quindi il
+// totale reale li somma entrambi (prompt+completion+reasoning) e NON usiamo "di
+// cui" (che sarebbe contraddittorio e farebbe sottostimare il totale).
+func formatUsage(u *provider.Usage) string {
+	if u.ReasoningTokens > u.CompletionTokens {
+		realTotal := u.PromptTokens + u.CompletionTokens + u.ReasoningTokens
+		return fmt.Sprintf("usage (token reali dal provider): prompt=%d, content=%d, reasoning=%d (separato dal content), totale=%d",
+			u.PromptTokens, u.CompletionTokens, u.ReasoningTokens, realTotal)
+	}
+	return fmt.Sprintf("usage (token reali dal provider): prompt=%d, completion=%d (di cui reasoning=%d), totale=%d",
+		u.PromptTokens, u.CompletionTokens, u.ReasoningTokens, u.TotalTokens)
+}
+
 // logProviderRequest stampa info diagnostiche prima della chiamata al provider
 // (Sprint 1.5.C verbose). Endpoint risolto via env override o default. Visibile
 // anche nel .log accoppiato (audit trail NFR-11).
@@ -679,9 +695,12 @@ func outputBaseName(p *profile.Profile, parsed *input.ParsedResult, started time
 		if idx := strings.LastIndex(first, "."); idx > 0 {
 			first = first[:idx]
 		}
-		descriptor = "_" + first
+		// Stesso slug di output.Write (nomi .md/.pdf/.docx), così il `.log`
+		// accoppiato condivide il nome base e non contiene spazi/punti/accenti/
+		// virgole (fragili su kDrive/shell/URL). Bug 2026-06-07.
+		descriptor = "_" + output.Slug(first)
 	}
-	return ts + "_" + p.Profilo + descriptor
+	return ts + "_" + output.Slug(p.Profilo) + descriptor
 }
 
 // openAuditTrail apre il .log accoppiato e crea un MultiWriter logger.
@@ -882,8 +901,7 @@ func drainStreamWithBody(ch <-chan provider.StreamEvent, log *runlog.Logger, bod
 			log.Info("reasoning totale: %d caratteri di ragionamento (non inclusi nell'output)", reasoningChars)
 		}
 		if usage != nil {
-			log.Info("usage (token reali dal provider): prompt=%d, completion=%d (di cui reasoning=%d), totale=%d",
-				usage.PromptTokens, usage.CompletionTokens, usage.ReasoningTokens, usage.TotalTokens)
+			log.Info("%s", formatUsage(usage))
 		}
 	}
 
